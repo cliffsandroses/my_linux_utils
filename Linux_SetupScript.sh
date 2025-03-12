@@ -80,7 +80,7 @@ choice $flavour in
 		cd yay
 		makepkg -si -y
 		yay -Sua
-		yay -S docker-desktopx
+		yay -S docker-desktop preload -y
   		sudo groupadd docker # adding docker to group
     		sudo usermod -aG docker $USER
       		newgrp docker
