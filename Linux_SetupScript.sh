@@ -24,7 +24,12 @@ choice $flavour in
 1(
 	if [ "$systype" == 1]
 		then
-		sudo pacman -Syyu -y
+  		echo "Syncing Pacman in"
+		for i in 5 4 3 2 1
+		do echo "$i . . "
+		sleep 1
+		done
+  		sudo pacman -Syyu -y
 		sudo pacman -S --needed base-devel vi vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
 		sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y # nomacs - image viewer
 		git clone https://aur.archlinux.org/yay.git
@@ -43,14 +48,14 @@ choice $flavour in
 		then
 		sudo pacman -S open-vm-tools ttf-liberation-mono-nerd wezterm -y
 		sudo systemctl status vmtoolsd.service
-		for i in {5 4 3 2 1}
+		for i in 5 4 3 2 1
 		do echo "$i . . "
 		sleep 1
 		done
 		sudo systemctl enable vmtoolsd.service
 		sudo systemctl start vmtoolsd.service
 		sudo systemctl status vmtoolsd.service
-		for i in {5 4 3 2 1}
+		for i in 5 4 3 2 1
 		do echo "$i . . "
 		sleep 1
 		done
