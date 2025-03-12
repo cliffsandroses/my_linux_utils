@@ -25,6 +25,7 @@ choice $flavour in
 	if [ "$systype" == 1]
 		then
   		echo "Do you have an Intel or AMD cpu?"
+    		echo "If you do not know exit this script and run 'lscpu | grep Model\ name'"
     		echo
       		echo "1: Intel"
 		echo "2: AMD"
@@ -39,6 +40,7 @@ choice $flavour in
   		echo
     		echo "Making changes to pacman"
 		echo
+  		sudo cd /etc
   		sudo sed -i -e "s/#Color/Color/g" -e "s/#ParalledDownloads/ParallelDownloads/g" pacman.conf -y
     		sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.original -y
       		sudo pacman -Syv -y
@@ -53,7 +55,7 @@ choice $flavour in
     		echo
     		echo "Installing applications."
 		echo
-  		sudo pacman -S --needed base-devel bluez blueman p7zip tar jdk-openjdk bluez-utils fastfetch htop vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
+  		sudo pacman -S --needed base-devel linux-headers linux-lts linux-lts-headers bluez blueman p7zip tar jdk-openjdk bluez-utils fastfetch htop vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
 		sudo pacman -Syu -y
       		echo
       		echo "Package Installation from pacman is done!"
@@ -84,8 +86,25 @@ choice $flavour in
       		newgrp docker
 		sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
 		sudo chmod g+rwx "$HOME/.docker" -R
-  		cd /etc
-	
+  		echo
+    		if [ $arch -eq 1 ]
+      			then ucode=Intel
+	 	elif [ $arch -eq 2 ]
+   			then ucode=AMD	
+      		fi
+    		echo "Beginning $ucode specific setup"
+      		for i in 3 2 1
+   			do echo "$i . . " |  tr -d '\n'
+			sleep 1
+		done
+  		echo "Now"
+		echo 
+  		if [ $arch -eq 1 ]
+    			then 
+       			sudo pacman -S intel-ucode
+	  		sudo grub-mkconfig -o /boot/grub/grub.cfg
+     		elif [ $arch -eq 2 ] # Incomplete 
+       			then
 	elif [ "$systype" == 2]
 		then
 		sudo pacman -Syyu -y
