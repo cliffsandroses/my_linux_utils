@@ -16,7 +16,7 @@ cd ~
 if [ "$flavour" == 1 && "$systype" == 1]
 	then
 	sudo pacman -Syyu -y
-	sudo pacman -S --needed base-devel git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
+	sudo pacman -S --needed base-devel vi vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
 	sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y # nomacs - image viewer
 	git clone https://aur.archlinux.org/yay.git
 	cd yay
