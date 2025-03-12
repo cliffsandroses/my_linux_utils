@@ -24,23 +24,52 @@ choice $flavour in
 1(
 	if [ "$systype" == 1]
 		then
+  		echo "Do you have an Intel or AMD cpu?"
+    		echo
+      		echo "1: Intel"
+		echo "2: AMD"
+  		echo
+    		read arch
+      		echo
+  		echo "Starting script"
+		for i in 3 2 1
+   			do echo "$i . . " |  tr -d '\n'
+			sleep 1
+		done
+  		echo
+    		echo "Making changes to pacman"
+		echo
+  		sudo sed -i -e "s/#Color/Color/g" -e "s/#ParalledDownloads/ParallelDownloads/g" pacman.conf -y
+    		sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.original -y
+      		sudo pacman -Syv -y
+      		sudo reflector --verbose --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist -y
   		echo "Syncing Pacman in"
 		for i in 3 2 1
-   			do echo "$i . . "
+   			do echo "$i . . " |  tr -d '\n'
 			sleep 1
 		done
   		echo "Now"
-  		sudo pacman -Syy -y
+  		sudo pacman -Syyv -y
     		echo
     		echo "Installing applications."
 		echo
-  		sudo pacman -S --needed base-devel vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
-    		echo
+  		sudo pacman -S --needed base-devel bluez blueman p7zip tar jdk-openjdk bluez-utils fastfetch htop vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
+		sudo pacman -Syu -y
+      		echo
       		echo "Package Installation from pacman is done!"
 		echo
+  		sudo modprobe btusb
+    		sudo systemctl status bluetooth
+		for i in 5 4 3 2 1
+			do echo "$i . . " |  tr -d '\n'
+			sleep 1
+		done
+		sudo systemctl enable bluetooth
+		sudo systemctl start bluetooth
+		sudo systemctl status bluetooth
   		echo "Installing packages from Flatpak in"
 		for i in 3 2 1
-   			do echo "$i . . "
+   			do echo "$i . . " |  tr -d '\n'
 			sleep 1
 		done
   		echo "Now"
@@ -55,6 +84,7 @@ choice $flavour in
       		newgrp docker
 		sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
 		sudo chmod g+rwx "$HOME/.docker" -R
+  		cd /etc
 	
 	elif [ "$systype" == 2]
 		then
@@ -67,7 +97,7 @@ choice $flavour in
 		sudo pacman -S open-vm-tools ttf-liberation-mono-nerd wezterm -y
 		sudo systemctl status vmtoolsd.service
 		for i in 5 4 3 2 1
-			do echo "$i . . "
+			do echo "$i . . " |  tr -d '\n'
 			sleep 1
 		done
   		echo "Done!"
@@ -75,7 +105,7 @@ choice $flavour in
 		sudo systemctl start vmtoolsd.service
 		sudo systemctl status vmtoolsd.service
 		for i in 5 4 3 2 1
-			do echo "$i . . "
+			do echo "$i . . " |  tr -d '\n'
 			sleep 1
 		done
   		echo "Done!"
