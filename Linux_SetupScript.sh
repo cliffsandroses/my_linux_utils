@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /bin/bash
 
 # My own script to run while setting up a new system
 
@@ -24,7 +24,11 @@ if [ "$flavour" == 1 && "$systype" == 1]
 	yay -Sua
 	yay -S docker-desktop
 	
-	
+if [ "$flavour" == 1 && "$systype" == 2]
+	then
+	sudo pacman -Syyu -y
+	sudo pacman -S --needed base-devel vi vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
+	sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y
 
 if [ "$systype" == 3 ]
 	then
