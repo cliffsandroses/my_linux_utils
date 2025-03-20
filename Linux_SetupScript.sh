@@ -103,7 +103,7 @@ choice $flavour in
     			then 
        			sudo pacman -S intel-ucode
 	  		sudo grub-mkconfig -o /boot/grub/grub.cfg
-     		elif [ $arch -eq 2 ] # Incomplete 
+     		elif [ $arch -eq 2 ] # Incomplete, add option to setup a cli only machine
        			then
 	elif [ "$systype" == 2]
 		then
