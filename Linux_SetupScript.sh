@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # My own script to run while setting up a new system
 
