@@ -1,5 +1,6 @@
 #!/bin/bash
 # My own script to run while setting up a new system
+# git clone https://raw.githubusercontent.com/cliffsandroses/my_linux_utils
 clear
 echo "Which flavour of linux is this system?"
 echo "1: Arch"
