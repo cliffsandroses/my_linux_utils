@@ -1,7 +1,5 @@
 #!/bin/bash
-
 # My own script to run while setting up a new system
-
 clear
 echo "Which flavour of linux is this system?"
 echo "1: Arch"
