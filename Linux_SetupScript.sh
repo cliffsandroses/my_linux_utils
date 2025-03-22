@@ -6,6 +6,7 @@ echo "Which flavour of linux is this system?"
 echo "1: Arch"
 echo "2: Fedora/Red Hat"
 echo "3: Ubuntu/Debian"
+echo "4: Home server"
 echo
 read flavour
 echo
@@ -20,7 +21,7 @@ cd ~
 
 choice $flavour in
 
-1(
+1)
 	if [ "$systype" == 1]
 		then
   		echo "Do you have an Intel or AMD cpu?"
@@ -130,4 +131,5 @@ choice $flavour in
   	fi
    ;;
 
-   2)
+   4)
+   	sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
