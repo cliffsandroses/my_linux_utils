@@ -18,25 +18,25 @@ echo
 read systype
 echo
 cd ~
+echo "Do you have an Intel or AMD cpu?"
+	echo "If you do not know exit this script and run 'lscpu | grep Model\ name'"
+	echo
+  	echo "1: Intel"
+	echo "2: AMD"
+  	echo
+    	read arch
+      	echo
+  	echo "Starting script"
+	for i in 3 2 1
+   		do echo "$i . . " |  tr -d '\n'
+		sleep 1
+	done
 
 choice $flavour in
 
 1)
 	if [ "$systype" == 1]
 		then
-  		echo "Do you have an Intel or AMD cpu?"
-    		echo "If you do not know exit this script and run 'lscpu | grep Model\ name'"
-    		echo
-      		echo "1: Intel"
-		echo "2: AMD"
-  		echo
-    		read arch
-      		echo
-  		echo "Starting script"
-		for i in 3 2 1
-   			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
   		echo
     		echo "Making changes to pacman"
 		echo
