@@ -76,6 +76,7 @@ choice $flavour in
 		done
   		echo "Now"
 		sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y # nomacs - image viewer
+  		sudo flatpak update -y
 		git clone https://aur.archlinux.org/yay.git # installing yay
 		cd yay
 		makepkg -si -y
@@ -133,3 +134,4 @@ choice $flavour in
 
    4)
    	sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+
