@@ -1,137 +1,333 @@
-#!/bin/bash
-# My own script to run while setting up a new system
-# git clone https://www.github.com/cliffsandroses/my_linux_utils
-clear
-echo "Which flavour of linux is this system?"
-echo "1: Arch"
-echo "2: Fedora/Red Hat"
-echo "3: Ubuntu/Debian"
-echo "4: Home server"
-echo
-read flavour
-echo
-echo "What kind of system is this?"
-echo "1: Personal System"
-echo "2: Barebones"
-echo "3: VM"
-echo
-read systype
-echo
-cd ~
-echo "Do you have an Intel or AMD cpu?"
-	echo "If you do not know exit this script and run 'lscpu | grep Model\ name'"
-	echo
-  	echo "1: Intel"
-	echo "2: AMD"
-  	echo
-    	read arch
-      	echo
-  	echo "Starting script"
-	for i in 3 2 1
-   		do echo "$i . . " |  tr -d '\n'
-		sleep 1
-	done
+#!/usr/bin/env bash
+# ==========================================
+# Linux Automated Setup Script
+# Interactive system type + optional features
+# Professional visual output
+# ==========================================
 
-choice $flavour in
+set -euo pipefail
+IFS=$'\n\t'
+LOGFILE="$HOME/setup.log"
 
-1)
-	if [ "$systype" == 1]
-		then
-  		echo
-    		echo "Making changes to pacman"
-		echo
-  		sudo cd /etc
-  		sudo sed -i -e "s/#Color/Color/g" -e "s/#ParalledDownloads/ParallelDownloads/g" pacman.conf -y
-    		sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.original -y
-      		sudo pacman -Syv -y
-      		sudo reflector --verbose --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist -y
-  		echo "Syncing Pacman in"
-		for i in 3 2 1
-   			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-  		echo "Now"
-  		sudo pacman -Syyv -y
-    		echo
-    		echo "Installing applications."
-		echo
-  		sudo pacman -S --needed base-devel linux-headers linux-lts linux-lts-headers bluez blueman p7zip tar jdk-openjdk bluez-utils fastfetch htop vim nano git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
-		sudo pacman -Syu -y
-      		echo
-      		echo "Package Installation from pacman is done!"
-		echo
-  		sudo modprobe btusb
-    		sudo systemctl status bluetooth
-		for i in 5 4 3 2 1
-			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-		sudo systemctl enable bluetooth
-		sudo systemctl start bluetooth
-		sudo systemctl status bluetooth
-  		echo "Installing packages from Flatpak in"
-		for i in 3 2 1
-   			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-  		echo "Now"
-		sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y # nomacs - image viewer
-  		sudo flatpak update -y
-		git clone https://aur.archlinux.org/yay.git # installing yay
-		cd yay
-		makepkg -si -y
-		yay -Sua
-		yay -S docker-desktop preload -y
-  		sudo groupadd docker # adding docker to group
-    		sudo usermod -aG docker $USER
-      		newgrp docker
-		sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
-		sudo chmod g+rwx "$HOME/.docker" -R
-  		echo
-    		if [ $arch -eq 1 ]
-      			then ucode=Intel
-	 	elif [ $arch -eq 2 ]
-   			then ucode=AMD	
-      		fi
-    		echo "Beginning $ucode specific setup"
-      		for i in 3 2 1
-   			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-  		echo "Now"
-		echo 
-  		if [ $arch -eq 1 ]
-    			then 
-       			sudo pacman -S intel-ucode
-	  		sudo grub-mkconfig -o /boot/grub/grub.cfg
-     		elif [ $arch -eq 2 ] # Incomplete, add option to setup a cli only machine
-       			then
-	elif [ "$systype" == 2]
-		then
-		sudo pacman -Syyu -y
-		sudo pacman -S --needed base-devel vim git flatpak ttf-liberation-mono-nerd wezterm obsidian docker flameshot libreoffice-fresh docker-buildx python python-pynput python-pip python-virtualenv python-setuptools -y
-		sudo flatpak install brave zed nomacs syncthingy vscodium heroicgameslauncher -y
+# ---------- Logging ----------
+info()  { echo -e "\e[32m✔ [INFO]\e[0m $*" | tee -a "$LOGFILE"; }
+warn()  { echo -e "\e[33m⚠ [WARN]\e[0m $*" | tee -a "$LOGFILE"; }
+error() { echo -e "\e[31m✖ [ERROR]\e[0m $*" | tee -a "$LOGFILE"; }
+step()  { echo -e "\e[36m→ $*\e[0m" | tee -a "$LOGFILE"; }
 
-	elif [ "$systype" == 3 ]
-		then
-		sudo pacman -S open-vm-tools ttf-liberation-mono-nerd wezterm -y
-		sudo systemctl status vmtoolsd.service
-		for i in 5 4 3 2 1
-			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-  		echo "Done!"
-		sudo systemctl enable vmtoolsd.service
-		sudo systemctl start vmtoolsd.service
-		sudo systemctl status vmtoolsd.service
-		for i in 5 4 3 2 1
-			do echo "$i . . " |  tr -d '\n'
-			sleep 1
-		done
-  		echo "Done!"
-  	fi
-   ;;
+# ---------- Section Heading ----------
+section() {
+    echo -e "\n\e[34m==========================================\e[0m"
+    echo -e "\e[34m  $1\e[0m"
+    echo -e "\e[34m==========================================\e[0m\n"
+}
 
-   4)
-   	sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+# ---------- Countdown ----------
+countdown() {
+    echo
+    for i in 3 2 1; do
+        echo -ne "\rStarting in $i ..."
+        sleep 1
+    done
+    echo -e "\rStarting now!   "
+}
 
+# ---------- Spinner ----------
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while kill -0 "$pid" 2>/dev/null; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    echo "    "
+}
+
+# ---------- Flatpak Apps ----------
+FLATPAK_APPS=(
+  "com.brave.Browser"
+  "dev.zed.Zed"
+  "org.nomacs.ImageLounge"
+  "com.github.zocker_160.SyncThingy"
+  "com.vscodium.codium"
+  "com.heroicgameslauncher.hgl"
+)
+
+# ---------- Dev Tools ----------
+DEV_TOOLS=(
+    "python python-pynput python-pip python-virtualenv python-setuptools"
+    "jdk-openjdk"
+)
+
+# ---------- Optional Games Placeholder ----------
+GAMES=(
+    # Add gaming packages later
+)
+
+# ---------- Detect Distro ----------
+detect_distro() {
+    section "Detecting Linux Distro"
+    if [[ -f /etc/arch-release ]]; then
+        DISTRO="arch"
+    elif [[ -f /etc/fedora-release ]]; then
+        DISTRO="fedora"
+    elif [[ -f /etc/debian_version ]]; then
+        DISTRO="debian"
+    else
+        error "Unsupported distribution."
+        exit 1
+    fi
+    info "Detected distro: $DISTRO"
+}
+
+# ---------- Detect CPU ----------
+detect_cpu() {
+    section "Detecting CPU"
+    if lscpu | grep -qi intel; then
+        CPU="intel"
+    elif lscpu | grep -qi amd; then
+        CPU="amd"
+    else
+        CPU="unknown"
+    fi
+    info "CPU detected: $CPU"
+}
+
+# ---------- Detect VM ----------
+detect_vm() {
+    section "Detecting Virtual Machine"
+    if systemd-detect-virt | grep -qi vmware; then
+        IS_VM="true"
+        warn "VMware VM detected."
+        read -rp "Proceed as VM system? [y/N]: " vm_confirm
+        if [[ ! "$vm_confirm" =~ ^[Yy]$ ]]; then
+            info "Proceeding as physical machine."
+            IS_VM="false"
+        fi
+    else
+        IS_VM="false"
+    fi
+    info "VM status: $IS_VM"
+}
+
+# ---------- Select System Type ----------
+select_system_type() {
+    section "Select System Type"
+    echo "1) Personal System"
+    echo "2) Barebones"
+    echo "3) VM"
+    read -rp "Enter choice [1-3]: " SYSTEM_TYPE
+
+    case "$SYSTEM_TYPE" in
+        1) SYSTEM_TYPE_NAME="personal" ;;
+        2) SYSTEM_TYPE_NAME="barebones" ;;
+        3) SYSTEM_TYPE_NAME="vm" ;;
+        *) error "Invalid choice"; exit 1 ;;
+    esac
+    info "System type selected: $SYSTEM_TYPE_NAME"
+}
+
+# ---------- Optional Features ----------
+select_optional_features() {
+    section "Select Optional Features"
+    echo "1) Minimal (core only)"
+    echo "2) Full (GUI + dev tools + optional apps)"
+    echo "3) Dev Tools only"
+    echo "4) Games only"
+    read -rp "Enter choice [1-4, blank=default]: " FEATURE_CHOICE
+
+    case "$FEATURE_CHOICE" in
+        1) FEATURE="minimal" ;;
+        2) FEATURE="full" ;;
+        3) FEATURE="dev" ;;
+        4) FEATURE="games" ;;
+        "") 
+            if [[ "$SYSTEM_TYPE_NAME" == "personal" ]]; then
+                FEATURE="full"
+            else
+                FEATURE="minimal"
+            fi
+            ;;
+        *) error "Invalid feature choice"; exit 1 ;;
+    esac
+    info "Optional feature selected: $FEATURE"
+}
+
+# ---------- Core Packages ----------
+install_core_packages() {
+    section "Installing Core Packages"
+    step "Packages: git, curl, wget, vim, nano, htop"
+    case "$DISTRO" in
+        arch)
+            sudo pacman -Syu --noconfirm &
+            spinner $!
+            sudo pacman -S --needed --noconfirm base-devel git curl wget htop vim nano &
+            spinner $!
+            ;;
+        fedora)
+            sudo dnf upgrade -y &
+            spinner $!
+            sudo dnf install -y git curl wget htop vim nano &
+            spinner $!
+            ;;
+        debian)
+            sudo apt update && sudo apt upgrade -y &
+            spinner $!
+            sudo apt install -y git curl wget htop vim nano &
+            spinner $!
+            ;;
+    esac
+    info "Core packages installed"
+}
+
+# ---------- GUI / Flatpak ----------
+install_gui_apps() {
+    section "Installing GUI Apps (Flatpak)"
+    if ! flatpak remotes | grep -q flathub; then
+        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    fi
+    for app in "${FLATPAK_APPS[@]}"; do
+        step "Installing $app"
+        flatpak install -y flathub "$app" &
+        spinner $!
+    done
+    info "GUI apps installed"
+}
+
+# ---------- Dev Tools ----------
+install_dev_tools() {
+    section "Installing Development Tools"
+    step "Packages: ${DEV_TOOLS[*]}"
+    case "$DISTRO" in
+        arch) sudo pacman -S --needed --noconfirm "${DEV_TOOLS[@]}" &
+             spinner $! ;;
+        fedora) sudo dnf install -y "${DEV_TOOLS[@]}" &
+             spinner $! ;;
+        debian) sudo apt install -y "${DEV_TOOLS[@]}" &
+             spinner $! ;;
+    esac
+    info "Development tools installed"
+}
+
+# ---------- Docker ----------
+install_docker() {
+    if [[ "$SYSTEM_TYPE_NAME" != "personal" ]]; then
+        info "Skipping Docker (Personal systems only)"
+        return
+    fi
+    section "Installing Docker"
+    case "$DISTRO" in
+        arch) sudo pacman -S --needed --noconfirm docker docker-buildx &
+             spinner $! ;;
+        fedora) sudo dnf install -y docker docker-compose &
+             spinner $! ;;
+        debian) sudo apt install -y docker.io docker-compose &
+             spinner $! ;;
+    esac
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    sudo usermod -aG docker "$USER"
+    info "Docker installed and configured"
+}
+
+# ---------- Bluetooth ----------
+setup_bluetooth() {
+    if [[ "$SYSTEM_TYPE_NAME" != "personal" ]]; then
+        info "Skipping Bluetooth (Personal systems only)"
+        return
+    fi
+    section "Setting Up Bluetooth"
+    sudo modprobe btusb || true
+    sudo systemctl enable bluetooth
+    sudo systemctl start bluetooth
+    info "Bluetooth configured"
+}
+
+# ---------- CPU Microcode ----------
+install_microcode() {
+    section "Installing CPU Microcode"
+    case "$DISTRO" in
+        arch)
+            if [[ "$CPU" == "intel" ]]; then
+                sudo pacman -S --noconfirm intel-ucode &
+                spinner $!
+            elif [[ "$CPU" == "amd" ]]; then
+                sudo pacman -S --noconfirm amd-ucode &
+                spinner $!
+            fi
+            sudo grub-mkconfig -o /boot/grub/grub.cfg || true
+            ;;
+    esac
+    info "CPU microcode installed"
+}
+
+# ---------- VM Tools ----------
+install_vm_tools() {
+    if [[ "$IS_VM" == "true" ]]; then
+        section "Installing VM Tools"
+        case "$DISTRO" in
+            arch) sudo pacman -S --noconfirm open-vm-tools &
+                 spinner $! ;;
+        esac
+        sudo systemctl enable vmtoolsd.service
+        sudo systemctl start vmtoolsd.service
+        info "VM tools installed"
+    fi
+}
+
+# ---------- ASCII Header ----------
+print_header() {
+    echo -e "\e[36m
+  _     _      _            _     
+ | |   (_) ___| | ___   ___| | __ 
+ | |   | |/ _ \ |/ _ \ / __| |/ / 
+ | |___| |  __/ | (_) | (__|   <  
+ |_____|_|\___|_|\___/ \___|_|\_\
+\e[0m"
+}
+
+# ---------- MAIN ----------
+print_header
+countdown
+detect_distro
+detect_cpu
+detect_vm
+select_system_type
+select_optional_features
+
+install_core_packages
+install_docker
+setup_bluetooth
+install_microcode
+install_vm_tools
+
+# Conditional optional features
+case "$FEATURE" in
+    full)
+        install_gui_apps
+        install_dev_tools
+        ;;
+    dev)
+        install_dev_tools
+        ;;
+    games)
+        # Placeholder for future games
+        ;;
+    minimal)
+        info "Minimal install selected; skipping optional features"
+        ;;
+esac
+
+# Summary
+section "Setup Complete!"
+echo -e "System Type: $SYSTEM_TYPE_NAME"
+echo -e "Distro: $DISTRO"
+echo -e "CPU: $CPU"
+echo -e "VM: $IS_VM"
+echo -e "Features Installed: $FEATURE"
+echo -e "Log file: $LOGFILE"
+echo -e "Reboot recommended."
