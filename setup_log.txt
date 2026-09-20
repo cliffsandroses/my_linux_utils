@@ -1,0 +1,11 @@
+[2026-07-23 21:45:02] Flavour selected: 1
+[2026-07-23 21:45:04] System type selected: 1
+[2026-07-23 22:35:31] Flavour selected: 1
+[2026-07-23 22:35:32] System type selected: 1
+[2026-07-25 14:29:39] FAILURE: Setup failed. Check log: setup_log.txt
+[2026-07-25 14:33:28] SUCCESS: Setup completed successfully!
+[2026-07-25 14:34:11] SUCCESS: Setup completed successfully!
+[2026-07-25 14:34:16] SUCCESS: Setup completed successfully!
+[2026-07-25 14:36:52] FAILURE: Setup failed. Check log: setup_log.txt
+[2026-07-25 14:38:14] Flavour selected: 1
+[2026-07-25 14:38:17] System type selected: 1
