@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly PC backup
+
+[Timer]
+OnCalendar=*-*-* 02:30
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

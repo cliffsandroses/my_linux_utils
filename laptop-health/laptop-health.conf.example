@@ -1,0 +1,27 @@
+# Laptop health check settings. Sourced by laptop-health.sh, so this is bash syntax.
+
+# --- alerts ------------------------------------------------------------------
+# The same ntfy topic as the homelab VM; titles start with "laptop:" so you can tell them apart.
+NTFY_URL=""   # your ntfy topic, for example https://ntfy.sh/<a-long-random-name>
+ALERT_PREFIX="laptop"
+# A problem must be seen this many runs in a row (5 min apart) before it is sent.
+CONFIRM_RUNS=2
+# Nudge again about a problem that is still there after this many hours (0 = never).
+REMIND_HOURS=12
+
+# --- OpenClaw ----------------------------------------------------------------
+OPENCLAW_UNIT="openclaw-gateway.service"
+OPENCLAW_WATCHDOG_TIMER="openclaw-watchdog.timer"
+# Leave empty to find `openclaw` on PATH; set it if the timer cannot (check: which openclaw).
+OPENCLAW_BIN=""
+
+# --- the rest of the laptop --------------------------------------------------
+# Must be running. A unit that is not installed is skipped, so extras here are harmless.
+REQUIRED_USER_UNITS=""
+# Programs that must be running, by process name. Syncthing carries ~/Axon and ~/Projects.
+REQUIRED_PROCESSES="syncthing"
+REQUIRED_SYSTEM_UNITS="tailscaled.service"
+# Failed units to ignore, as systemctl --failed prints them; user units as "user:name.service".
+IGNORE_FAILED_UNITS=""
+DISK_MOUNTS="/ /home"
+DISK_WARN_PCT=90

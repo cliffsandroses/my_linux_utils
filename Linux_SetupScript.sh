@@ -1,6 +1,7 @@
 #! /bin/bash
 # My own script to run while setting up a new system
 # git clone https://www.github.com/cliffsandroses/my_linux_utils
+# Rebuilding a whole machine (any distro or Windows)? Start with RESTORE.md.
 
 set -e
 

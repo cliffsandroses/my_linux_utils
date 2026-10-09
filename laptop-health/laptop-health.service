@@ -1,0 +1,8 @@
+[Unit]
+Description=Laptop health check (alerts to ntfy on change)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/lib/laptop-health/laptop-health.sh
+TimeoutStartSec=180

@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up home to the homelab with Kopia
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/Projects/my_linux_utils/pc-backup/pc-backup.sh
+Nice=10
+IOSchedulingClass=idle
