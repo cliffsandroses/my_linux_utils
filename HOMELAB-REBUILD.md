@@ -129,6 +129,29 @@ mirrors: `git clone /mnt/data/Backups/git-mirrors/<repo>.git ~/Projects/<repo>`.
   the 7.6 GB host. Set VAAPI in `/config/encoding.xml`.
 - **Don't grow `local-lvm` until whatever was on the disk before is either copied or written off.**
 
+## 5b. The media pool (one library per type)
+
+Since 2026-10-21 the media disks are one mergerfs pool, so each app has one library per type.
+
+```
+# /etc/fstab on the VM
+/mnt/nvme:/mnt/media/DATA=NC:/mnt/data=NC  /mnt/pool  fuse.mergerfs  allow_other,cache.files=off,category.create=mfs,minfreespace=20G,moveonenospc=false,dropcacheonclose=true,noforget,inodecalc=path-hash,fsname=mergerfs-pool,nofail,x-systemd.requires-mounts-for=/mnt/nvme,x-systemd.requires-mounts-for=/mnt/media,x-systemd.requires-mounts-for=/mnt/data  0 0
+```
+- New files land on `/mnt/nvme`; the USB and SATA disks are `NC` (no new files) but stay readable.
+- On `/mnt/nvme`, create `Downloads/{tv-sonarr,radarr,incomplete}`, `Media/{TV Shows,Movies,Shorts}` and
+  `RecycleBin/{sonarr,radarr}` owned by 1000 **before** anything writes: mergerfs copies a missing
+  folder's owner from another disk, and a root-owned folder there made every write fail.
+- Containers mount `/mnt/pool:/mnt/pool:rslave` (Plex: `/mnt/pool/Media:...:ro,rslave`).
+- Sonarr `/mnt/pool/Media/TV Shows`, Radarr `/mnt/pool/Media/Movies` (collections too), qBittorrent
+  `/mnt/pool/Downloads` + categories, Seerr's target folders, Plex one folder per library.
+- Jellyfin: VM export `/mnt/pool 192.168.10.21(ro,…,fsid=200,crossmnt)`; CT 200 mounts
+  `192.168.10.20:/mnt/pool/Media/<x>` at `/movies /tv /music /shorts`, `/mnt/pool/Downloads` at `/downloads`.
+- Soma: `~/.config/soma/media-pool.env` holds `SOMA_JF_ROOTS` (single-quoted JSON, via EnvironmentFile;
+  a plain `Environment=` line strips the quotes and Soma crashes).
+- Check: a test file hardlinked from `/mnt/pool/Downloads` into a show folder must show `nlink=2`.
+- Plex home-video libraries (Shorts) match files by path, so a path change briefly shows duplicates;
+  they clear once only the pool folder is left.
+
 ## 6. Done when
 
 - [ ] `http://192.168.10.20:8090/web/` shows no red alerts
