@@ -3,7 +3,17 @@ Two setup scripts, both kept:
 - `Linux_SetupScript.sh` — the current one (September 2026): flags, helpers, drivers, hardening.
 - `Linux_SetupScript.overhaul.sh` — the February 2026 overhaul: menus, distro/CPU/VM detection, Docker, Bluetooth.
 
-Rebuilding a whole machine? Start with RESTORE.md.
+Rebuilding a whole machine? Start with RESTORE.md. Rebuilding the homelab VM? HOMELAB-REBUILD.md.
+
+Also here:
+
+- `arch/arch-apps.sh` — the app set for Arch + KDE when there is no saved package list.
+- `arch/post-install.sh` — static LAN IP, Headscale join, Syncthing, search index, timers.
+- `arch/fingerprint.sh` — enroll a finger; lock screen, sudo and KDE prompts accept it.
+- `luks-header-backup.sh` — copy every LUKS header off the machine. Run before any disk work.
+- `pc-backup/` — nightly package lists + Kopia snapshot of ~, and it checks the snapshot landed.
+- `laptop-health/` — alerts the phone, including when the home backup or a LUKS header copy is missing.
+- `syncthing/projects.stignore` — `~/Projects/.stignore`, which Syncthing never syncs.
 
 Notes: 
 

@@ -18,7 +18,8 @@ backup's date stamp.
 | `~/Projects`, `~/Axon`, `~/Backups`, `~/EC01`, `~/Hera` | Homelab VM | Syncthing, continuous |
 | This repo | GitHub + VM | git push, and Syncthing through `~/Projects` |
 | Game saves | `~/Backups/game-saves` → VM | Ludusavi, run by `pc-backup` |
-| Package lists | `~/Backups/pc/` → VM | `pc-backup` |
+| Package lists | `~/Backups/pc/` → VM, **and** VM `/mnt/data/Backups/laptop-pc/` | `pc-backup` (the second copy survives a broken Kopia) |
+| LUKS headers | `~/Backups/pc/luks/` → VM `/mnt/data/Backups/laptop-pc/luks/` | `luks-header-backup.sh`, by hand (needs sudo) |
 | **All of `~`**: settings, keys, documents, versioned | VM `/mnt/data/kopia-laptop` (encrypted) | **Kopia**, nightly via `pc-backup.timer` |
 
 `~/.kopiaignore` lists what Kopia skips: Trash, caches, Downloads, games, `homelab-offsite`,
@@ -27,6 +28,26 @@ and anything that can be downloaded again.
 **Two things to keep in your password manager**, because nothing can be restored without them:
 - the **Kopia repository password**
 - the VM login (`moosa` on the VM)
+
+### Check it is real, monthly
+On 2026-10-21 the Kopia repository turned out to have **never received a snapshot**, and the
+laptop's drive was already gone. `pc-backup` and `laptop-health` now fail loudly when that
+happens, but look for yourself too:
+```bash
+kopia snapshot list ~                      # must list a snapshot from the last 24 h
+ls -l ~/Backups/pc/luks/                   # a header copy per encrypted disk (if any)
+ssh moosa@<homelab-vm> ls /mnt/data/Backups/laptop-pc/   # the off-machine package lists
+```
+
+### Before touching a disk (swap, clone, reinstall)
+Every item here is a thing that went wrong on 2026-10-21.
+1. Run `./luks-header-backup.sh`. A clone tool zeroed the LUKS header and the whole disk
+   became unreadable, though the data behind it was intact.
+2. Run `systemctl --user start pc-backup.service` and check it ends with `Kopia snapshot of ~
+   taken at …`. Then restore one file from that snapshot to prove it reads back.
+3. Server disks: read `HOMELAB-REBUILD.md` section 0 first. Clonezilla copies Proxmox's VM
+   storage as empty volumes and still reports success.
+4. Never overwrite the old drive until the new one has booted and been checked.
 
 ### How the nightly backup works
 `pc-backup/pc-backup.sh` writes the package lists, runs `ludusavi backup`, then runs
@@ -74,9 +95,14 @@ systemctl --user enable --now pc-backup.timer
 
 ```bash
 sudo systemctl enable --now tailscaled
-sudo tailscale up                       # Headscale: add --login-server <headscale URL>
+sudo tailscale up --login-server https://hs.meldev.duckdns.org --authkey <key> --accept-routes=false
 systemctl --user enable --now syncthing
 ```
+Make the key on the VM: `docker exec headscale headscale preauthkeys create --user 2 --expiration 1h`,
+and delete the old laptop's node there first (`headscale nodes list`, then `nodes delete`).
+**Keep `--accept-routes=false`**: with routes on, LAN replies go into the tunnel and the laptop
+stops answering on the LAN, which breaks the homelab's nightly offsite push to it.
+On Arch, `arch/post-install.sh` does this step and the static LAN address together.
 
 ### 1.3 Get the synced folders back
 1. Open `http://localhost:8384` → **Actions → Show ID**. Copy the new device ID.
@@ -84,7 +110,10 @@ systemctl --user enable --now syncthing
    `Axon`, `Backups`, `EC01`, `Aedon`. Remove the old laptop device.
 3. Back on the new machine, accept each folder at the **same path as before**:
    `~/Projects`, `~/Axon`, `~/Backups`, `~/EC01`, `~/Hera`.
-4. Wait until every folder shows **Up to Date** before going on.
+4. `.stignore` never syncs, so a new machine has none: copy `syncthing/projects.stignore` to
+   `~/Projects/.stignore` **before** accepting Projects. Axon's lives inside the vault.
+   On the phone, Hera's folder is labelled **Aedon**.
+5. Wait until every folder shows **Up to Date** before going on.
 
 This repo is then in `~/Projects/my_linux_utils`. Without Syncthing:
 `git clone https://github.com/cliffsandroses/my_linux_utils ~/Projects/my_linux_utils`
@@ -110,6 +139,18 @@ xargs -a flatpaks.txt flatpak install -y flathub
 ```
 Not on Arch? Read `pkglist-*.txt` as a checklist and install the ones you want with
 `dnf`/`apt`, or with Flatpak where the distro doesn't have them.
+
+**No package lists?** They are also on the VM at `/mnt/data/Backups/laptop-pc/`. If both are
+gone, `arch/arch-apps.sh` installs the known set (rebuilt 2026-10-21), using prebuilt `-bin`
+AUR packages so nothing compiles for half an hour.
+
+### 1.5b Arch finishing touches
+```bash
+cd ~/Projects/my_linux_utils
+HS_KEY=<key> ./arch/post-install.sh   # quiet shells, static LAN IP, tailnet, Syncthing, search index, timers
+./arch/fingerprint.sh                 # enroll a finger; lock screen, sudo and KDE prompts use it
+./luks-header-backup.sh               # only does something if the disk is encrypted
+```
 
 ### 1.6 Everything in `~`: settings, keys, documents (Kopia)
 Install Kopia: Arch `yay -S kopia-ui-bin` then
@@ -197,4 +238,8 @@ winget install Git.Git Syncthing.Syncthing tailscale.tailscale Obsidian.Obsidian
 - [ ] `ssh moosa@<homelab-vm>` logs in with the restored key
 - [ ] A game launches and its save loads
 - [ ] Linux: `systemctl --failed` and `systemctl --user --failed` are empty
-- [ ] `systemctl --user start pc-backup.service` succeeds, so the next restore starts from this machine
+- [ ] `systemctl --user start pc-backup.service` succeeds **and** `kopia snapshot list ~` shows
+      the snapshot it just made, so the next restore starts from this machine
+- [ ] `laptop-health.sh --report` shows `home-backup ok` (and `luks-* ok` on an encrypted disk)
+- [ ] The laptop is `192.168.10.30` on Ethernet, and the homelab's offsite push reaches it:
+      on the VM, `~/homelab/backup/offsite-retry.sh`

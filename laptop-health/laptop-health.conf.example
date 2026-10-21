@@ -25,3 +25,9 @@ REQUIRED_SYSTEM_UNITS="tailscaled.service"
 IGNORE_FAILED_UNITS=""
 DISK_MOUNTS="/ /home"
 DISK_WARN_PCT=90
+
+# --- backups that must exist -------------------------------------------------
+# Alert when the newest Kopia snapshot of ~ is older than this (0 = don't check).
+KOPIA_MAX_AGE_HOURS=26
+# Where luks-header-backup.sh keeps header copies. Checked only when a LUKS disk exists.
+LUKS_HEADER_DIR="$HOME/Backups/pc/luks"

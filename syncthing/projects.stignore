@@ -1,0 +1,15 @@
+// Syncthing ignore patterns for ~/Projects. Copy to ~/Projects/.stignore on every device:
+// Syncthing never replicates this file, so a fresh machine has none (lost 2026-10-21, rebuilt
+// from Axon/workflows/vault-map.md: "excludes build artefacts, dependency trees and .env files").
+// .git is deliberately NOT excluded: code needs its history on every machine. The rule that
+// goes with that: never run git on one repo from two machines at once.
+(?d)build
+(?d).gradle
+(?d).idea
+(?d)node_modules
+(?d).venv
+(?d)venv
+(?d)__pycache__
+(?d)*.pyc
+.env
+.env.*

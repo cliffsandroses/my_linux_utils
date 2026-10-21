@@ -175,6 +175,39 @@ for m in ${DISK_MOUNTS:-/}; do
   else record "$key" ok "${pct}% used"; fi
 done
 
+# ---- the home backup actually exists (2026-10-21: Kopia ran for weeks without one snapshot) ------
+KOPIA="${KOPIA_BIN:-$(command -v kopia 2>/dev/null || echo /opt/KopiaUI/resources/server/kopia)}"
+if [ "${KOPIA_MAX_AGE_HOURS:-26}" -gt 0 ]; then
+  if [ ! -x "$KOPIA" ]; then
+    record home-backup fail "Kopia is not installed, so ~ is not backed up — RESTORE.md 1.6"
+  elif ! "$KOPIA" repository status >/dev/null 2>&1; then
+    record home-backup fail "Kopia is not connected to its repository, so ~ is not backed up — RESTORE.md 1.6"
+  else
+    newest=$("$KOPIA" snapshot list "$HOME" --json 2>/dev/null | python3 -c '
+import json, sys
+try: s = json.load(sys.stdin)
+except Exception: s = []
+print(max(x["startTime"] for x in s) if s else "")')
+    if [ -z "$newest" ]; then record home-backup fail "Kopia has no snapshot of ~ at all"
+    else
+      h=$(( (NOW - $(date -d "$newest" +%s)) / 3600 ))
+      if [ "$h" -ge "${KOPIA_MAX_AGE_HOURS:-26}" ]; then record home-backup fail "the newest Kopia snapshot of ~ is ${h} h old"
+      else record home-backup ok "last snapshot ${h} h ago"; fi
+    fi
+  fi
+fi
+
+# ---- the disk's LUKS header has a copy (without it, a wiped header loses the whole disk) ----------
+luks=$(lsblk -nrpo NAME,FSTYPE 2>/dev/null | awk '$2=="crypto_LUKS"{print $1}')
+if [ -n "$luks" ]; then
+  hdir="${LUKS_HEADER_DIR:-$HOME/Backups/pc/luks}"
+  for dev in $luks; do
+    f="$hdir/$(basename "$dev").header.img"
+    if [ ! -s "$f" ]; then record "luks-$(basename "$dev")" fail "$dev has no header backup — run luks-header-backup.sh"
+    else record "luks-$(basename "$dev")" ok "header backup $(date -r "$f" +%F)"; fi
+  done
+fi
+
 # ---- out-of-memory kills (needs the journal to be readable: wheel/adm/systemd-journal) ----------
 if journalctl -k -n 1 -q --no-pager >/dev/null 2>&1; then
   oom=$(journalctl -k --since "-6min" --no-pager -q 2>/dev/null \
