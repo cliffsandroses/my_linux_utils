@@ -4,7 +4,7 @@
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 export DEBIAN_FRONTEND=noninteractive
-PKGS="ca-certificates curl gnupg linux-image-amd64 qemu-guest-agent nfs-kernel-server syncthing cron rsync git python3 jq sqlite3 unzip mergerfs"
+PKGS="ca-certificates curl gnupg linux-image-amd64 qemu-guest-agent nfs-kernel-server syncthing cron rsync git python3 jq sqlite3 unzip mergerfs bind9-dnsutils"   # dig: the health check tests DNS with it
 DOCKER_PKGS="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 
 log "Time zone and name"
