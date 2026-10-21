@@ -14,6 +14,8 @@ Also here:
 - `pc-backup/` — nightly package lists + Kopia snapshot of ~, and it checks the snapshot landed.
 - `laptop-health/` — alerts the phone, including when the home backup or a LUKS header copy is missing.
 - `syncthing/projects.stignore` — `~/Projects/.stignore`, which Syncthing never syncs.
+- `profiles/moosa.env` — my settings for the homelab and the laptop (no secrets). Everything else reads it.
+- `homelab/` — the homelab, scripted from that profile: `run.sh vm|pve <script> [--check]`. Order in HOMELAB-REBUILD.md.
 
 Notes: 
 

@@ -6,6 +6,30 @@ The tested restore procedure behind it is `Axon/Homelab/restore-test.md`.
 
 Placeholders: Proxmox is `192.168.10.13`, the VM `192.168.10.20`, the laptop `192.168.10.30`.
 
+## Scripted: the profile
+
+Everything below is scripted. `profiles/moosa.env` holds the settings (no secrets);
+`homelab/run.sh` runs each step on the machine it belongs to, from the laptop. Every script
+takes `--check` (changes nothing, reports `ok`/`DIFF` against the profile) and is safe to rerun.
+On 2026-10-21 every script's `--check` matched the running homelab.
+
+```bash
+cd ~/Projects/my_linux_utils
+homelab/run.sh pve pve-vm.sh create        # VM 100 from the cloud image (refuses to wipe a disk with data)
+homelab/run.sh vm  vm-base.sh              # kernel, packages, swap, DNS stub (reboot once after)
+homelab/run.sh vm  vm-storage.sh           # mounts, media pool, landing folders, NFS
+homelab/run.sh vm  vm-restore.sh           # files from the newest nightly set
+HS_KEY=<key> homelab/run.sh vm vm-apps.sh  # apps in order, databases, Soma, Homelab Web, tailnet
+homelab/run.sh pve pve-vm.sh web-token | ssh moosa@192.168.10.20 'umask 077; mkdir -p ~/.config/homelab-web; cat > ~/.config/homelab-web/pve-token'
+homelab/run.sh vm  vm-media-pool.sh        # one library per type in every app
+homelab/run.sh vm  vm-schedules.sh         # crontab, timers, health check
+homelab/run.sh pve pve-cts.sh dns-fallback
+homelab/run.sh pve pve-cts.sh jellyfin
+# any time: homelab/run.sh vm vm-storage.sh --check   (or any other script)
+```
+
+The sections below are the why and the traps, for when a step fails.
+
 ---
 
 ## 0. Before any disk work on the server (what went wrong)

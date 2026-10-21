@@ -1,0 +1,6 @@
+[Unit]
+Description=Homelab Web: collect the status snapshot for /web
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/homelab/web/collect.py
+Nice=10

@@ -9,9 +9,11 @@
 #     docker exec headscale headscale preauthkeys create --user 2 --expiration 1h
 set -uo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"; REPO="$(dirname "$HERE")"
-IFACE="${IFACE:-enp2s0}"; IP="${LAPTOP_IP:-192.168.10.30/24}"; GW="${GW:-192.168.10.1}"
-DNS="${DNS:-192.168.10.20 192.168.10.10}"     # AdGuard on the VM, then the DNS fallback CT
-HS_URL="${HS_URL:-https://hs.meldev.duckdns.org}"
+# shellcheck source=../profiles/moosa.env
+[ -f "$REPO/profiles/${PROFILE:-moosa}.env" ] && . "$REPO/profiles/${PROFILE:-moosa}.env"
+IFACE="${LAPTOP_IFACE:-enp2s0}"; IP="${LAPTOP_IP:-192.168.10.30}/${LAN_CIDR:-24}"; GW="${GATEWAY:-192.168.10.1}"
+DNS="${LAPTOP_DNS:-192.168.10.20 192.168.10.10}"     # AdGuard on the VM, then the DNS fallback CT
+HS_URL="${HEADSCALE_URL:-https://hs.meldev.duckdns.org}"
 log() { printf '\n== %s\n' "$*"; }
 sudo -v || exit 1
 
@@ -62,6 +64,23 @@ if [ -n "$B" ]; then
     $B config list excludeFolders 2>/dev/null | grep -q "$d/" || $B config add excludeFolders "$d" 2>/dev/null
   done
   $B config list excludeFolders 2>/dev/null
+fi
+
+log "Lid: ${LAPTOP_LID:-suspend}"
+if [ "${LAPTOP_LID:-suspend}" = ignore ]; then
+  # Two layers: KDE's power settings while logged in, systemd-logind at the login screen.
+  K=$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)
+  if [ -n "$K" ]; then
+    for g in AC Battery LowBattery; do
+      $K --file powerdevilrc --group $g --group SuspendAndShutdown --key LidAction 0
+      $K --file powerdevilrc --group $g --group SuspendAndShutdown --key AutoSuspendAction 0
+    done
+    echo "KDE: lid closed does nothing, no automatic sleep"
+  fi
+  sudo mkdir -p /etc/systemd/logind.conf.d
+  printf '[Login]\nHandleLidSwitch=ignore\nHandleLidSwitchExternalPower=ignore\nHandleLidSwitchDocked=ignore\n' \
+    | sudo tee /etc/systemd/logind.conf.d/lid-ignore.conf >/dev/null
+  echo "logind: lid ignored (applies after the next reboot, or: sudo systemctl kill -s HUP systemd-logind)"
 fi
 
 log "My services: health check and nightly backup"

@@ -1,0 +1,21 @@
+# Home Assistant. Recreated 2026-10-21 after the NVMe swap: the original compose lived in
+# CasaOS's app folder, which was not in the backup. Config comes back from the restored
+# homeassistant_ha_config volume (03:15 nightly backup).
+name: homeassistant
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Asia/Kolkata
+    volumes:
+      - ha_config:/config
+      - /etc/localtime:/etc/localtime:ro
+
+volumes:
+  ha_config:
+    name: homeassistant_ha_config
+    external: true

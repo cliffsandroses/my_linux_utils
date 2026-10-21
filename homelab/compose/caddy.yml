@@ -1,0 +1,26 @@
+# Caddy, front door for hs.meldev.duckdns.org and the caddy_default network.
+# Recreated 2026-10-21 after the NVMe swap: the original compose lived in CasaOS's app folder,
+# which was not in the backup. Certificates and config come back from the restored volumes.
+name: caddy
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+    name: caddy_caddy_data
+    external: true
+  caddy_config:
+    name: caddy_caddy_config
+    external: true

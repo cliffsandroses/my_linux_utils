@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Homelab Web</title>
+<style>
+/* Layout: operator console. Alerts first, a summary strip, then every subsystem as a dense section.
+   Status lives in small coloured marks, not in card chrome. */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#111518; --ink2:#46505a; --muted:#77818c; --rule:#dde2e7; --sunk:#eef1f4;
+  --accent:#1d5fd1; --ok:#14804a; --warn:#a86400; --bad:#c42b3e; --off:#9aa3ad;
+  --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0d1013; --panel:#151a1f; --ink:#e8edf2; --ink2:#b5bfca; --muted:#808b97; --rule:#262d35; --sunk:#1b2128;
+  --accent:#7fa8ff; --ok:#4fd08a; --warn:#f0b54a; --bad:#ff6b80; --off:#5c6670; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);
+  padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));padding-block:0 60px}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;
+  padding-block:14px 10px;border-bottom:1px solid var(--rule)}
+h1{font-size:18px;margin:0;letter-spacing:-.01em}
+h1 small{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+nav{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px}
+nav a{color:var(--ink2)}
+.stamp{margin-left:auto;font:12px var(--mono);color:var(--muted)}
+.stamp.stale{color:var(--bad)}
+section{display:flex;flex-direction:column;gap:10px;scroll-margin-top:70px}
+h2{font-size:15px;margin:0;display:flex;gap:10px;align-items:baseline}
+h2 .n{font:12px var(--mono);color:var(--muted);font-weight:400}
+h3{font-size:12px;margin:6px 0 0;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px}
+.pad{padding:12px 14px}
+.alerts{display:flex;flex-direction:column}
+.alert{display:flex;gap:10px;padding:9px 14px;border-top:1px solid var(--rule)} .alert:first-child{border-top:0}
+.alert .lvl{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;width:44px;flex:none;padding-top:2px}
+.lvl.bad{color:var(--bad)} .lvl.warn{color:var(--warn)} .lvl.info{color:var(--muted)}
+.allclear{padding:12px 14px;color:var(--ok)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font:600 20px var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile .s{font-size:12px;color:var(--ink2)}
+.bar{height:5px;background:var(--sunk);border-radius:3px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar i.warn{background:var(--warn)} .bar i.bad{background:var(--bad)}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:8px}
+.app{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);min-width:0}
+a.app:hover{border-color:var(--accent);text-decoration:none}
+.app b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app span{display:block;font:11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--off)}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.group{font-size:12px;color:var(--muted);margin:8px 0 2px;grid-column:1/-1}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);white-space:nowrap;vertical-align:top}
+th{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--sunk);position:sticky;top:0}
+th.sort{cursor:pointer;user-select:none} th.sort:hover{color:var(--ink)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+td.mono,.mono{font-family:var(--mono);font-size:12px}
+td.wrap{white-space:normal;min-width:220px}
+.pill{display:inline-block;font:11px var(--mono);padding:1px 7px;border-radius:99px;background:var(--sunk);color:var(--ink2)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)}
+.memcell{display:flex;align-items:center;gap:8px}
+.memcell .bar{width:80px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input[type=search]{font:13px var(--sans);padding:6px 10px;border:1px solid var(--rule);border-radius:7px;background:var(--panel);color:var(--ink);min-width:220px}
+input:focus-visible,a:focus-visible,th:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);overflow-x:auto}
+.muted{color:var(--muted)}
+.empty{padding:14px;color:var(--muted)}
+footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);padding-top:12px}
+@media (max-width:560px){.cols2{grid-template-columns:1fr} .stamp{margin-left:0;width:100%} input[type=search]{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Homelab Web <small>everything, in detail · Soma is the simple view</small></h1>
+    <nav>
+      <a href="#apps">Apps</a><a href="#containers">Containers</a><a href="#proxmox">Proxmox</a><a href="#storage">Storage</a>
+      <a href="#backups">Backups</a><a href="#schedules">Schedules</a><a href="#network">Network</a><a href="#sync">Sync</a>
+    </nav>
+    <span class="stamp" id="stamp">loading…</span>
+  </header>
+
+  <section id="alerts"><h2>Needs attention <span class="n" id="alert-n"></span></h2><div class="panel alerts" id="alert-list"><div class="empty">Loading the latest snapshot…</div></div></section>
+  <section id="summary"><div class="tiles" id="tiles"></div></section>
+  <section id="apps"><h2>Apps <span class="n" id="apps-n"></span></h2><div class="apps" id="app-grid"></div></section>
+
+  <section id="containers">
+    <h2>Containers <span class="n" id="ctr-n"></span></h2>
+    <div class="tools"><input type="search" id="ctr-filter" placeholder="Filter by name, image, project, state…" aria-label="Filter containers"></div>
+    <div class="panel scroll"><table id="ctr-table"><thead><tr>
+      <th class="sort" data-k="name" tabindex="0">Name</th><th class="sort" data-k="state" tabindex="0">State</th>
+      <th class="sort" data-k="mem_used" tabindex="0">Memory</th><th class="sort" data-k="cpu_pct" tabindex="0">CPU</th>
+      <th class="sort" data-k="restarts" tabindex="0">Restarts</th><th class="sort" data-k="errors_1h" tabindex="0">Errors 1h</th>
+      <th class="sort" data-k="started" tabindex="0">Up since</th><th>Ports</th><th class="sort" data-k="project" tabindex="0">Project</th><th>Image</th>
+    </tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="proxmox">
+    <h2>Proxmox <span class="n" id="pve-n"></span></h2>
+    <div class="cols2">
+      <div class="panel pad"><dl class="kv" id="pve-kv"></dl></div>
+      <div class="panel scroll"><table id="guests"><thead><tr><th>Guest</th><th>Status</th><th>Memory</th><th>CPU</th><th>Up</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="cols2">
+      <div class="panel scroll"><table id="pve-storage"><thead><tr><th>Storage</th><th>Type</th><th>Used</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="panel scroll"><table id="pve-disks"><thead><tr><th>Disk</th><th>Model</th><th>Size</th><th>Health</th><th>Wear</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="storage">
+    <h2>Homelab VM</h2>
+    <div class="cols2">
+      <div class="panel pad"><dl class="kv" id="vm-kv"></dl></div>
+      <div class="panel scroll"><table id="vm-disks"><thead><tr><th>Mount</th><th>Device</th><th>Used</th><th>Free</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <h3>What the apps hold</h3>
+    <div class="tiles" id="counts"></div>
+  </section>
+
+  <section id="backups">
+    <h2>Backups <span class="n" id="bk-n"></span></h2>
+    <div class="cols2">
+      <div class="panel scroll"><table id="bk-sets"><thead><tr><th>Set</th><th>Result</th><th>On laptop</th><th>Size</th></tr></thead><tbody></tbody></table></div>
+      <div class="panel pad"><h3 style="margin-top:0">Latest log</h3><pre id="bk-log"></pre><h3>Git mirrors</h3><div id="bk-mirrors" class="mono"></div></div>
+    </div>
+  </section>
+
+  <section id="schedules">
+    <h2>Schedules</h2>
+    <div class="cols2">
+      <div class="panel scroll"><table id="timers"><thead><tr><th>Timer</th><th>Last run</th><th>Result</th><th>Next</th></tr></thead><tbody></tbody></table></div>
+      <div class="panel pad"><h3 style="margin-top:0">crontab (moosa)</h3><pre id="cron"></pre><h3>/etc/cron.d</h3><pre id="crond"></pre></div>
+    </div>
+  </section>
+
+  <section id="network">
+    <h2>Network</h2>
+    <div class="cols2">
+      <div class="panel scroll"><table id="tailnet"><thead><tr><th>Tailnet device</th><th>Address</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <div class="panel scroll"><table id="dns"><thead><tr><th>DNS check</th><th>Answers</th><th>Time</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="panel pad"><h3 style="margin-top:0">NFS exports</h3><pre id="nfs"></pre><h3>Addresses on the VM</h3><pre id="ips"></pre></div>
+  </section>
+
+  <section id="sync">
+    <h2>Syncthing</h2>
+    <div class="cols2">
+      <div class="panel scroll"><table id="st-folders"><thead><tr><th>Folder</th><th>State</th><th>Files</th><th>Size</th><th>Shared with</th></tr></thead><tbody></tbody></table></div>
+      <div class="panel scroll"><table id="st-devices"><thead><tr><th>Device</th><th>Connected</th><th>Address</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <footer>Read-only. Collected on the homelab VM every 2 minutes by <span class="mono">~/homelab/web/collect.py</span> (homelab-web.timer); this page reloads it every minute. To change things, use Soma, Dockhand or the app itself.</footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const gb = b => b == null ? "–" : b >= 2**40 ? (b/2**40).toFixed(2)+" TB" : b >= 2**30 ? (b/2**30).toFixed(1)+" GB" : (b/2**20).toFixed(0)+" MB";
+const pct = (a,b) => b ? Math.round(100*a/b) : 0;
+const bar = p => `<div class="bar"><i class="${p>=90?"bad":p>=75?"warn":""}" style="width:${Math.min(p,100)}%"></i></div>`;
+const dur = s => { if (s == null) return "–"; s = Math.floor(s); const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
+const ago = iso => { const t = Date.parse(iso); return isNaN(t) || t < 0 ? "–" : dur((Date.now()-t)/1000); };
+const rows = (sel, html) => { $(sel+" tbody").innerHTML = html || `<tr><td colspan="9" class="muted">Nothing here.</td></tr>`; };
+let D = null, sortKey = "mem_used", sortDir = -1;
+
+function render(d){
+  D = d;
+  const age = Date.now()/1000 - d.generated;
+  const st = $("#stamp"); st.textContent = `snapshot ${new Date(d.generated*1000).toLocaleTimeString()} · ${dur(age)} ago · took ${d.took_s}s`;
+  st.classList.toggle("stale", age > 600);
+
+  // alerts
+  $("#alert-n").textContent = d.alerts.length ? `${d.alerts.length}` : "";
+  $("#alert-list").innerHTML = d.alerts.length ? d.alerts.map(a => `<div class="alert"><span class="lvl ${a.level}">${a.level === "bad" ? "down" : a.level}</span><span>${esc(a.text)}</span></div>`).join("")
+    : `<div class="allclear">Everything checked is healthy.</div>`;
+
+  // tiles
+  const v = d.vm, p = d.proxmox, c = d.containers;
+  const running = c.filter(x => x.state === "running").length;
+  const up = d.apps.filter(a => a.url && a.up).length, withUrl = d.apps.filter(a => a.url).length;
+  const b = d.backups.sets[0];
+  const tiles = [
+    ["Proxmox RAM", `${pct(p.mem_used,p.mem_total)}%`, `${gb(p.mem_used)} of ${gb(p.mem_total)} · promised ${gb(p.mem_promised)}`, pct(p.mem_used,p.mem_total)],
+    ["Homelab VM RAM", `${pct(v.mem_total-v.mem_avail,v.mem_total)}%`, `${gb(v.mem_avail)} free of ${gb(v.mem_total)}, no swap`, pct(v.mem_total-v.mem_avail,v.mem_total)],
+    ["Containers", `${running}/${c.length}`, `running · ${c.reduce((s,x)=>s+x.restarts,0)} restarts total`],
+    ["App pages", `${up}/${withUrl}`, "answering right now"],
+    ["Last backup", b ? `${d.backups.latest_age_h}h` : "none", b ? `${b.ok?"OK":"FAILED"} · ${b.offsite?"on laptop":"not on laptop yet"}` : ""],
+    ["Tailnet", `${d.network.tailnet.filter(n=>n.online).length}/${d.network.tailnet.length}`, "devices online"],
+  ];
+  $("#tiles").innerHTML = tiles.map(([k,val,s,p2]) => `<div class="panel tile"><span class="k">${k}</span><span class="v">${val}</span>${p2!=null?bar(p2):""}<span class="s">${esc(s)}</span></div>`).join("");
+
+  // apps
+  const groups = {};
+  d.apps.forEach(a => (groups[a.group] ||= []).push(a));
+  const order = ["Photos","Files","Media","Media automation","Downloads","Home","Security","Network","Admin","AI","Other"];
+  $("#apps-n").textContent = `${up} of ${withUrl} answering`;
+  $("#app-grid").innerHTML = Object.keys(groups).sort((x,y)=>order.indexOf(x)-order.indexOf(y)).map(g =>
+    `<div class="group">${esc(g)}</div>` + groups[g].sort((x,y)=>x.name.localeCompare(y.name)).map(a => {
+      const cls = !a.url ? (a.up ? "ok" : "bad") : a.up ? "ok" : "bad";
+      const sub = a.url ? `${a.url.replace(/^https?:\/\//,"")}${a.ms!=null?` · ${a.ms} ms`:""}` : `no page · ${a.container_state || a.where}`;
+      const inner = `<span class="dot ${cls}"></span><span style="min-width:0"><b>${esc(a.name)}</b><span>${esc(sub)}</span></span>`;
+      return a.url ? `<a class="app" href="${esc(a.url)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="app">${inner}</div>`;
+    }).join("")).join("");
+
+  renderContainers();
+
+  // proxmox
+  $("#pve-n").textContent = p.error ? p.error : `node ${p.node} · ${p.ip}`;
+  if (!p.error) {
+    $("#pve-kv").innerHTML = [["Version", p.pve], ["Kernel", p.kernel], ["CPU", `${p.cpu_model} · ${p.cpus} cores · ${Math.round((p.cpu||0)*100)}% busy`],
+      ["Load", (p.load||[]).join("  ")], ["Up", dur(p.uptime_s)], ["Memory", `${gb(p.mem_used)} used of ${gb(p.mem_total)}`],
+      ["Promised to guests", `${gb(p.mem_promised)} ${p.mem_promised > p.mem_total ? "(more than it has)" : ""}`]]
+      .map(([k,val]) => `<dt>${k}</dt><dd>${esc(val)}</dd>`).join("");
+    rows("#guests", p.guests.sort((a,b)=>a.id-b.id).map(g => `<tr><td>${g.type} ${g.id} · <b>${esc(g.name)}</b></td>
+      <td><span class="pill ${g.status==="running"?"ok":"warn"}">${esc(g.status)}</span></td>
+      <td><div class="memcell">${bar(pct(g.mem,g.maxmem))}<span class="mono">${gb(g.mem)} / ${gb(g.maxmem)}</span></div></td>
+      <td class="num">${Math.round((g.cpu||0)*100)}%</td><td class="num">${dur(g.uptime)}</td></tr>`).join(""));
+    rows("#pve-storage", p.storage.map(s => `<tr><td><b>${esc(s.name)}</b></td><td class="mono">${esc(s.type)}</td>
+      <td class="mono">${gb(s.used)} / ${gb(s.total)}</td><td>${bar(pct(s.used,s.total))}</td></tr>`).join(""));
+    rows("#pve-disks", p.disks.map(k => `<tr><td class="mono">${esc(k.dev)}</td><td>${esc(k.model)}</td><td class="mono">${gb(k.size)}</td>
+      <td><span class="pill ${k.health==="PASSED"||k.health==="OK"?"ok":"warn"}">${esc(k.health||"?")}</span></td><td class="mono">${k.wearout!=null && k.wearout!=="N/A" ? esc(k.wearout)+"%" : "–"}</td></tr>`).join(""));
+  }
+
+  // vm
+  $("#vm-kv").innerHTML = [["Host", `${v.hostname} · ${v.ip}`], ["System", v.os], ["Kernel", v.kernel], ["CPUs", `${v.cpus} · load ${v.load.join("  ")}`],
+    ["Up", dur(v.uptime_s)], ["Memory", `${gb(v.mem_total-v.mem_avail)} used, ${gb(v.mem_avail)} free of ${gb(v.mem_total)}`],
+    ["Swap", v.swap_total ? gb(v.swap_total) : "none"], ["Memory pressure", `${v.mem_pressure_avg60}% (last minute)`], ["Out-of-memory kills", `${v.oom_kills_since_boot} since boot`]]
+    .map(([k,val]) => `<dt>${k}</dt><dd>${esc(val)}</dd>`).join("");
+  rows("#vm-disks", v.disks.map(k => `<tr><td><b>${esc(k.mount)}</b></td><td class="mono">${esc(k.device)}</td><td class="mono">${gb(k.used)} / ${gb(k.size)}</td>
+    <td class="mono">${gb(k.avail)}</td><td>${bar(pct(k.used,k.size))}</td></tr>`).join(""));
+  const labels = {immich_assets:"Photos and videos", immich_albums:"Albums", nextcloud_files:"Nextcloud files indexed", sonarr_series:"Series (Sonarr)",
+    radarr_movies:"Movies (Radarr)", prowlarr_indexers:"Indexers", torrents:"Torrents"};
+  $("#counts").innerHTML = Object.entries(d.counts).map(([k,n]) => `<div class="panel tile"><span class="k">${labels[k]||k}</span><span class="v">${n.toLocaleString()}</span></div>`).join("");
+
+  // backups
+  const bs = d.backups.sets;
+  $("#bk-n").textContent = `${bs.length} sets in ${d.backups.dir}`;
+  rows("#bk-sets", bs.map(s => `<tr><td class="mono">${esc(s.name)}</td><td><span class="pill ${s.ok?"ok":"bad"}">${s.ok?"OK":"failed"}</span>${s.fails.length?` <span class="muted">${esc(s.fails.join("; "))}</span>`:""}</td>
+    <td><span class="pill ${s.offsite?"ok":"warn"}">${s.offsite?"yes":"no"}</span></td><td class="mono">${gb(s.size)}</td></tr>`).join(""));
+  $("#bk-log").textContent = d.backups.log_tail.join("\n");
+  $("#bk-mirrors").textContent = d.backups.git_mirrors.join("  ·  ") || "none";
+
+  // schedules
+  const usec = s => { if (!s || s === "n/a" || s === "0") return "–"; const t = Date.parse(s.replace(/^\w{3} /,"").replace(/ ([A-Z]{2,5})$/,"")); return isNaN(t) ? s : new Date(t).toLocaleString(); };
+  rows("#timers", d.schedules.timers.map(t => `<tr><td><b>${esc(t.timer.replace(".timer",""))}</b><br><span class="muted">${esc(t.description||"")}</span></td>
+    <td class="mono">${esc(usec(t.last))}</td><td><span class="pill ${t.result==="success"?"ok":t.result?"bad":""}">${esc(t.result||"–")}</span></td><td class="mono">${esc(usec(t.next))}</td></tr>`).join(""));
+  $("#cron").textContent = d.schedules.cron.join("\n") || "(empty)";
+  $("#crond").textContent = d.schedules.cron_d.join("\n") || "(empty)";
+
+  // network
+  const n = d.network;
+  rows("#tailnet", n.tailnet.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="mono">${esc(x.ip)}</td><td><span class="pill ${x.online?"ok":"warn"}">${x.online?"online":"offline"}</span></td></tr>`).join(""));
+  const dnsl = {adguard:"AdGuard (192.168.10.20)", adguard_blocks:"AdGuard, blocked name", fallback:"DNS fallback (192.168.10.10)", router:"Router (192.168.10.1)"};
+  rows("#dns", Object.entries(n.dns).map(([k,x]) => `<tr><td>${dnsl[k]||k}</td><td><span class="pill ${x.ok?"ok":"bad"}">${x.ok?"yes":"no"}</span></td><td class="num">${x.ms!=null?x.ms+" ms":"–"}</td></tr>`).join(""));
+  $("#nfs").textContent = n.nfs_exports.join("\n");
+  $("#ips").textContent = n.ips.join("\n");
+
+  // sync
+  const s = d.syncthing;
+  if (s.error) { $("#st-folders tbody").innerHTML = `<tr><td colspan="5" class="muted">${esc(s.error)}</td></tr>`; }
+  else {
+    rows("#st-folders", s.folders.map(f => `<tr><td><b>${esc(f.label)}</b><br><span class="muted mono">${esc(f.path)} · ${esc(f.type)}</span></td>
+      <td><span class="pill ${f.errors?"bad":f.state==="idle"?"ok":"warn"}">${esc(f.state)}${f.need?` · needs ${f.need}`:""}</span></td>
+      <td class="num">${(f.files||0).toLocaleString()}</td><td class="num">${gb(f.bytes)}</td><td>${esc(f.with.join(", ")||"–")}</td></tr>`).join("")
+      + s.pending_folders.map(f => `<tr><td><b>${esc(f.id)}</b></td><td><span class="pill warn">offered, not accepted</span></td><td></td><td></td><td>${esc(f.from.join(", "))}</td></tr>`).join(""));
+    rows("#st-devices", s.devices.map(x => `<tr><td><b>${esc(x.name)}</b> <span class="muted mono">${esc(x.id)}</span></td>
+      <td><span class="pill ${x.connected?"ok":"warn"}">${x.connected?"yes":"no"}</span></td><td class="mono">${esc(x.address||"–")}</td></tr>`).join(""));
+  }
+}
+
+function renderContainers(){
+  if (!D) return;
+  const q = $("#ctr-filter").value.trim().toLowerCase();
+  const list = D.containers.filter(c => !q || [c.name,c.image,c.project,c.state,c.health].join(" ").toLowerCase().includes(q))
+    .sort((a,b) => { const x = a[sortKey] ?? "", y = b[sortKey] ?? ""; return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * sortDir; });
+  const total = D.containers.reduce((s,c)=>s+c.mem_used,0);
+  $("#ctr-n").textContent = `${D.containers.length} · ${gb(total)} RAM in use`;
+  rows("#ctr-table", list.map(c => {
+    const p = c.mem_limit_set ? pct(c.mem_used,c.mem_limit) : null;
+    const state = c.state !== "running" ? `<span class="pill bad">${esc(c.state)}</span>` : c.health === "unhealthy" ? `<span class="pill bad">unhealthy</span>`
+      : `<span class="pill ok">${c.health || "running"}</span>`;
+    return `<tr><td><b>${esc(c.name)}</b>${c.oom_killed?` <span class="pill warn" title="Killed for using too much memory since it last started">OOM</span>`:""}</td><td>${state}</td>
+      <td><div class="memcell">${p!=null?bar(p):'<div class="bar" title="no cap"></div>'}<span class="mono">${gb(c.mem_used)}${c.mem_limit_set?" / "+gb(c.mem_limit):" · no cap"}</span></div></td>
+      <td class="num">${c.cpu_pct.toFixed(1)}%</td><td class="num">${c.restarts}</td><td class="num">${c.errors_1h || ""}</td>
+      <td class="mono">${ago(c.started)}</td><td class="mono">${esc(c.network_mode==="host"?"host network":c.ports.join(" "))}</td>
+      <td class="mono">${esc(c.project||"–")}</td><td class="mono muted">${esc(c.image)}</td></tr>`;
+  }).join(""));
+}
+
+document.querySelectorAll("th.sort").forEach(th => {
+  const go = () => { const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : (["name","state","project","started"].includes(k) ? 1 : -1); sortKey = k; renderContainers(); };
+  th.addEventListener("click", go); th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+});
+$("#ctr-filter").addEventListener("input", renderContainers);
+
+async function load(){
+  try {
+    const r = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) {
+    $("#stamp").textContent = "could not load data.json (" + e.message + ")"; $("#stamp").classList.add("stale");
+  }
+}
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
