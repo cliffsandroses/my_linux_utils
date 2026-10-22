@@ -103,6 +103,22 @@ for u in homelab-web.service homelab-web.timer; do
 done
 want "Proxmox read-only token present" test -s "$HOME/.config/homelab-web/pve-token" || note "make it: homelab/run.sh pve pve-vm.sh web-token (from the laptop)"
 
+log "Reachable over the tailnet"
+# Nextcloud answers "untrusted domain" to any address not in its list.
+for v in "${NEXTCLOUD_TRUSTED[@]}"; do
+  want "Nextcloud trusts $v" sh -c "docker exec -u 33 nextcloud php occ config:system:get trusted_domains | grep -qxF '$v'" || [ "$CHECK" = 1 ] || {
+    n=$(docker exec -u 33 nextcloud php occ config:system:get trusted_domains | wc -l)
+    docker exec -u 33 nextcloud php occ config:system:set trusted_domains "$n" --value="$v" >/dev/null; }
+done
+# Away from home, public DNS gives the home's public IP and Caddy turns the phone away; split DNS
+# sends just these names to AdGuard, which answers with the home address.
+hs="$HL/headscale/config/config.yaml"
+want "Headscale split DNS: $HEADSCALE_SPLIT_DNS_DOMAIN -> $HEADSCALE_SPLIT_DNS_SERVER" \
+  sh -c "grep -A2 '^    split:' '$hs' | grep -q '$HEADSCALE_SPLIT_DNS_DOMAIN:' && grep -q -- '- $HEADSCALE_SPLIT_DNS_SERVER' '$hs'" || [ "$CHECK" = 1 ] || {
+  cp -n "$hs" "$hs.bak-before-split-dns"
+  sed -i "s|^    split: {}$|    split:\n      $HEADSCALE_SPLIT_DNS_DOMAIN:\n        - $HEADSCALE_SPLIT_DNS_SERVER|" "$hs"
+  (cd "$HL/headscale" && docker compose restart headscale >/dev/null 2>&1); }
+
 log "Tailscale"
 if want "on the tailnet" tailscale status; then :
 elif [ -n "${HS_KEY:-}" ]; then
