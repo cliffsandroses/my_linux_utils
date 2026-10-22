@@ -114,7 +114,7 @@ done
 # sends just these names to AdGuard, which answers with the home address.
 hs="$HL/headscale/config/config.yaml"
 want "Headscale split DNS: $HEADSCALE_SPLIT_DNS_DOMAIN -> $HEADSCALE_SPLIT_DNS_SERVER" \
-  sh -c "grep -A2 '^    split:' '$hs' | grep -q '$HEADSCALE_SPLIT_DNS_DOMAIN:' && grep -q -- '- $HEADSCALE_SPLIT_DNS_SERVER' '$hs'" || [ "$CHECK" = 1 ] || {
+  sh -c "sed -n '/^    split:/,/^  [a-z]/p' '$hs' | grep -v '^ *#' | grep -q '^      $HEADSCALE_SPLIT_DNS_DOMAIN:' && grep -q -- '- $HEADSCALE_SPLIT_DNS_SERVER' '$hs'" || [ "$CHECK" = 1 ] || {
   cp -n "$hs" "$hs.bak-before-split-dns"
   sed -i "s|^    split: {}$|    split:\n      $HEADSCALE_SPLIT_DNS_DOMAIN:\n        - $HEADSCALE_SPLIT_DNS_SERVER|" "$hs"
   (cd "$HL/headscale" && docker compose restart headscale >/dev/null 2>&1); }
