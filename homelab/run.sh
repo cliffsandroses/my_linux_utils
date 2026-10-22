@@ -32,6 +32,9 @@ if [ "$where" = pve ] && [ "$script" = pve-cts.sh ]; then
     *" dns-fallback "*) stage '~/homelab/dns-fallback/create-dns-fallback.sh' create-dns-fallback.sh ;;
   esac
   case " $* " in
+    *" backups "*) stage '~/homelab/storage/proxmox-backup.sh' proxmox-backup.sh ;;
+  esac
+  case " $* " in
     *" jellyfin "*) stage "\$(ls -1 $JELLYFIN_BACKUP_GLOB | sort | tail -1)" jellyfin-config.tar.gz ;;
   esac
 fi

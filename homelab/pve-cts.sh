@@ -5,6 +5,9 @@
 #   pve-cts.sh [--check]                    both containers vs the profile
 #   pve-cts.sh dns-fallback                 CT 101 by ~/homelab/dns-fallback/create-dns-fallback.sh
 #   pve-cts.sh jellyfin                     CT 200 per the QuickSync runbook, config from the backup
+#   pve-cts.sh backups                      nightly Proxmox config + container backups to the data disk
+#                                           (~/homelab/storage/proxmox-backup.sh --install; the VM is
+#                                           deliberately not dumped: its contents are in the file backup)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 cmd=${1:-check}
@@ -118,10 +121,23 @@ EOF
   check_jf
 }
 
+check_backups() {
+  log "Proxmox backups (config + CTs $JELLYFIN_CT $DNS_FALLBACK_CT, nightly 02:30, keep 3)"
+  want "nightly cron" sh -c "crontab -l | grep -q proxmox-backup.sh"
+  want "backup share mounted" mountpoint -q /mnt/homelab-backups
+  want "a container backup from the last 26 h" sh -c "find /mnt/homelab-backups/dump -name 'vzdump-lxc-$JELLYFIN_CT-*.tar.zst' -mmin -1560 | grep -q ."
+}
+
+backups() {
+  check_backups && return
+  [ "$CHECK" = 1 ] || bash /root/staged/proxmox-backup.sh --install
+}
+
 case "$cmd" in
-  check) check_dns; check_jf ;;
+  check) check_dns; check_jf; check_backups ;;
+  backups) backups ;;
   dns-fallback) dns_fallback ;;
   jellyfin) jellyfin ;;
-  *) echo "pve-cts.sh [--check] | dns-fallback | jellyfin"; exit 1 ;;
+  *) echo "pve-cts.sh [--check] | dns-fallback | jellyfin | backups"; exit 1 ;;
 esac
 finish

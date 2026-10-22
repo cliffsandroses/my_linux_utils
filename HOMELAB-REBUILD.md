@@ -25,6 +25,7 @@ homelab/run.sh vm  vm-media-pool.sh        # one library per type in every app
 homelab/run.sh vm  vm-schedules.sh         # crontab, timers, health check
 homelab/run.sh pve pve-cts.sh dns-fallback
 homelab/run.sh pve pve-cts.sh jellyfin
+homelab/run.sh pve pve-cts.sh backups      # Proxmox config + containers, nightly to the data disk
 # any time: homelab/run.sh vm vm-storage.sh --check   (or any other script)
 ```
 
