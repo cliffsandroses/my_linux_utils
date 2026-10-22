@@ -49,6 +49,7 @@ APPS = {
     "watchtower": ("Watchtower", "Admin", None),
     "homelab-dashboard": ("Port Map", "Admin", "http://{ip}:8090"),
     "freellmapi": ("FreeLLMAPI", "AI", "http://{ip}:3001"),
+    "netdata": ("Netdata", "Admin", "http://{ip}:19999"),
     "ps5-mqtt": ("PS5 MQTT", "Home", None),
     "mosquitto": ("Mosquitto", "Home", None),
     "immich_postgres": ("Immich database", "Photos", None),

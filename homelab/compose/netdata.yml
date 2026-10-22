@@ -1,0 +1,36 @@
+# Netdata: perfmon-style metrics for the VM and its containers, with history (2026-10-22).
+# Host network: the dashboard is http://192.168.10.20:19999 (LAN and tailnet). Capped at 384 MB:
+# the VM froze on 2026-10-21 when RAM ran out, so nothing here gets to grow unbounded.
+name: netdata
+
+services:
+  netdata:
+    image: netdata/netdata:stable
+    container_name: netdata
+    pid: host
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 384m
+    cap_add: [SYS_PTRACE, SYS_ADMIN]
+    security_opt: [apparmor:unconfined]
+    environment:
+      - DISABLE_TELEMETRY=1
+      - TZ=Asia/Kolkata
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /:/host/root:ro,rslave
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
