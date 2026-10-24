@@ -92,6 +92,7 @@ systemctl --user enable --now pc-backup.timer >/dev/null 2>&1 && echo "pc-backup
 log "Still by hand"
 cat <<'EOF'
 - Fingerprint:        ./arch/fingerprint.sh
+- PS5 Remote Play:    ./arch/ps5-remote-play.sh  (pairing needs the PIN from the TV)
 - LUKS header copy:   ./luks-header-backup.sh  (only if the disk is encrypted)
 - Kopia:              RESTORE.md 1.6, then `systemctl --user start pc-backup.service`
                       and check it ends with "Kopia snapshot of ~ taken at ..."

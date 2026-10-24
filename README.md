@@ -10,6 +10,7 @@ Also here:
 - `arch/arch-apps.sh` — the app set for Arch + KDE when there is no saved package list.
 - `arch/post-install.sh` — static LAN IP, Headscale join, Syncthing, search index, timers.
 - `arch/fingerprint.sh` — enroll a finger; lock screen, sudo and KDE prompts accept it.
+- `arch/ps5-remote-play.sh` — PS5 Remote Play: chiaki-ng, video decoding, DualSense, finds the PS5, firewall rule, backs up the pairing.
 - `luks-header-backup.sh` — copy every LUKS header off the machine. Run before any disk work.
 - `pc-backup/` — nightly package lists + Kopia snapshot of ~, and it checks the snapshot landed.
 - `laptop-health/` — alerts the phone, including when the home backup or a LUKS header copy is missing.
