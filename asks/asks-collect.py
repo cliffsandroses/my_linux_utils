@@ -5,7 +5,9 @@ Runs on the laptop every 5 minutes (asks-collect.timer). Reads Claude Code's own
 (~/.claude/projects/*/*.jsonl: chats on this laptop, including the ones driven from the phone
 through Remote Control) and adds each new message to the ledger, ~/Projects/asks/ledger.json.
 Claude records each ask's items there: {"t": what, "s": done|said|open|waiting|blocked|chat,
-"p": the proof}. "said" = a chat reported it done and nobody checked. It then writes
+"p": the proof}. Asks from cloud chats come from the Moosa's Asks page on claude.ai: its "Save for Nucleus"
+button saves moosas-asks-*.json, which is imported from ~/Downloads (or ~/Projects/asks/inbox) and filed
+under ~/Projects/asks/imported. "said" = a chat reported it done and nobody checked. It then writes
 ~/Projects/asks/asks.json, which Syncthing carries to the homelab for Nucleus. Keys pasted into
 a message are hidden. Nothing leaves the laptop except through Syncthing.
 
@@ -86,6 +88,29 @@ def scan(ledger, offsets):
     return added
 
 
+def import_exports(ledger):
+    """Files saved by the claude.ai page's "Save for Nucleus": new asks are added; an ask already here keeps
+    its items unless it has none yet. Each file is moved to imported/ once read."""
+    n = 0
+    for f in sorted([*Path(HOME / "Downloads").glob("moosas-asks-*.json"), *(DIR / "inbox").glob("*.json")]):
+        d = load(f, None)
+        if not isinstance(d, dict) or d.get("source") != "moosas-asks" or not isinstance(d.get("asks"), dict):
+            continue
+        for k, a in d["asks"].items():
+            if not isinstance(a, dict) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,200}", k):
+                continue
+            a = {"text": redact(str(a.get("text") or ""))[:4000], "at": a.get("at"), "where": a.get("where") or "Cloud",
+                 "session": a.get("session"), "title": a.get("title") or "Chat", "items": a.get("items") if isinstance(a.get("items"), list) else []}
+            mine = ledger["asks"].get(k)
+            if mine is None:
+                ledger["asks"][k] = a; n += 1
+            elif not mine.get("items") and a["items"]:
+                mine["items"] = a["items"]; n += 1
+        (DIR / "imported").mkdir(parents=True, exist_ok=True)
+        f.replace(DIR / "imported" / f.name)
+    return n
+
+
 def publish(ledger):
     asks = sorted(({"id": k, **v} for k, v in ledger["asks"].items()), key=lambda a: a.get("at") or "", reverse=True)[:600]
     n = {"todo": 0, "waiting": 0, "done": 0}
@@ -103,7 +128,7 @@ def main():
     ledger = load(DIR / "ledger.json", {"asks": {}, "sessions": {}})
     ledger.setdefault("asks", {}); ledger.setdefault("sessions", {})
     offsets = load(STATE, {})
-    added = scan(ledger, offsets)
+    added = scan(ledger, offsets) + import_exports(ledger)
     if added:
         save(DIR / "ledger.json", ledger)
     save(STATE, offsets)
@@ -133,6 +158,13 @@ if __name__ == "__main__" and sys.argv[1:] == ["--test"]:
     main(); L = load(DIR / "ledger.json", {})
     assert "half" in L["asks"] and L["asks"]["half"]["text"] == "late one", "a line written in two goes is read once it's whole"
     assert redact("key tskey-auth-kXyZ-123 end") == "key [key hidden] end"
+    (t / "Downloads").mkdir(); json.dump({"source": "moosas-asks", "asks": {"c1": {"text": "cloud ask", "where": "Cloud", "items": [{"t": "x", "s": "done", "p": "y"}]},
+        "a5": {"text": "dup", "items": [{"t": "z", "s": "open"}]}, "../bad": {"text": "no"}}}, (t / "Downloads/moosas-asks-1.json").open("w"))
+    json.dump({"something": "else"}, (t / "Downloads/moosas-asks-2.json").open("w"))
+    main(); L = load(DIR / "ledger.json", {})
+    assert L["asks"]["c1"]["text"] == "cloud ask" and L["asks"]["a5"]["items"] == [{"t": "z", "s": "open"}] and "../bad" not in L["asks"], "import adds, fills empty items, skips bad ids"
+    assert (DIR / "imported/moosas-asks-1.json").exists() and not (t / "Downloads/moosas-asks-1.json").exists(), "imported file moved"
+    assert (t / "Downloads/moosas-asks-2.json").exists(), "a file that isn't an export is left alone"
     print("asks-collect: ok")
 elif __name__ == "__main__":
     main()
