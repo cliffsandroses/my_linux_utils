@@ -5,7 +5,7 @@
 #   pve-vm.sh disks                  SATA + USB passthrough, NVMe data disk at $VM_NVME_DATA_SIZE
 #   pve-vm.sh create [--force]       fresh Debian cloud image on the system disk, cloud-init set up.
 #                                    Refuses if that disk holds data, unless --force.
-#   pve-vm.sh web-token              read-only API user for the Homelab Web page; prints the token.
+#   pve-vm.sh web-token              read-only API user for the Nucleus page; prints the token.
 #                                    Pipe it to the VM:
 #     homelab/run.sh pve pve-vm.sh web-token | ssh moosa@<vm> 'umask 077; mkdir -p ~/.config/homelab-web; cat > ~/.config/homelab-web/pve-token'
 set -uo pipefail

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Homelab web: gather everything about the homelab into one JSON file for the /web page.
+"""Nucleus (was Homelab Web): gather everything about the homelab into one JSON file for the /web page.
 
 Runs on the homelab VM as moosa every 2 minutes (homelab-web.timer). Read-only: it asks
 Docker, Proxmox (an auditor-only API token), Headscale, Syncthing and the apps' own
@@ -18,6 +18,7 @@ OUT = HOME / "homelab/dashboard/www/web/data.json"
 PVE = "https://192.168.10.13:8006/api2/json"
 PVE_TOKEN = HOME / ".config/homelab-web/pve-token"   # "user@realm!tokenid=secret", mode 600
 BACKUPS = Path("/mnt/data/Backups/homelab")
+ASKS = HOME / "Projects/asks/asks.json"   # Moosa's asks, written on the laptop by asks-collect.py; Syncthing brings it here
 VM_IP = "192.168.10.20"
 NOCERT = ssl.create_default_context(); NOCERT.check_hostname = False; NOCERT.verify_mode = ssl.CERT_NONE
 
@@ -404,6 +405,14 @@ def alerts(d):
     return sorted(a, key=lambda x: order[x["level"]])
 
 
+def asks():
+    """The asks list as the laptop last wrote it; Nucleus shows it as is."""
+    try:
+        return json.loads(ASKS.read_text())
+    except (OSError, ValueError):
+        return {"missing": True, "asks": [], "counts": {}}
+
+
 def main():
     t = time.time()
     with ThreadPoolExecutor(6) as ex:
@@ -412,6 +421,7 @@ def main():
         d = {k: v.result() for k, v in f.items()}
     d["apps"] = apps(d["containers"])
     d["alerts"] = alerts(d)
+    d["asks"] = asks()
     d["generated"] = int(time.time()); d["took_s"] = round(time.time() - t, 1)
     js = json.dumps(d, separators=(",", ":"))
     if "--stdout" in sys.argv:

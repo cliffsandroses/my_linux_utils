@@ -1,0 +1,8 @@
+[Unit]
+Description=Off-site copy to MEGA every morning, after the 03:15 backup
+[Timer]
+OnCalendar=*-*-* 05:20
+Persistent=true
+RandomizedDelaySec=10min
+[Install]
+WantedBy=timers.target

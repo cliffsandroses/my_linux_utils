@@ -3,38 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Homelab Web</title>
+<title>Nucleus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Italiana&family=Urbanist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: operator console. Alerts first, a summary strip, then every subsystem as a dense section.
-   Status lives in small coloured marks, not in card chrome. */
+/* Nucleus: the inside of Soma. Operator console in the Dark Mirror look: alerts first, then your asks, a summary strip,
+   then every subsystem as a dense section. One cyan horizon under the header; status lives in small coloured marks. */
 :root{
-  --bg:#f3f5f7; --panel:#ffffff; --ink:#111518; --ink2:#46505a; --muted:#77818c; --rule:#dde2e7; --sunk:#eef1f4;
-  --accent:#1d5fd1; --ok:#14804a; --warn:#a86400; --bad:#c42b3e; --off:#9aa3ad;
-  --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
-  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  --bg:#050608; --panel:#0d0f14; --ink:#F4F7FF; --ink2:#C3CBE2; --muted:#8A93B2; --rule:#1f2431; --sunk:#151923;
+  --accent:#00E5FF; --ok:#3DDC97; --warn:#FFB020; --bad:#FF4D6D; --off:#5c6670; --said:#B9A4FF;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"Urbanist",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  --display:"Italiana","Didot",Georgia,serif; color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0d1013; --panel:#151a1f; --ink:#e8edf2; --ink2:#b5bfca; --muted:#808b97; --rule:#262d35; --sunk:#1b2128;
-  --accent:#7fa8ff; --ok:#4fd08a; --warn:#f0b54a; --bad:#ff6b80; --off:#5c6670; color-scheme:dark}}
+@media (prefers-color-scheme:light){:root{
+  --bg:#eef1f6; --panel:#ffffff; --ink:#0c1222; --ink2:#2c3550; --muted:#5d6684; --rule:#d8dde8; --sunk:#f2f4f8;
+  --accent:#00849a; --ok:#138a5a; --warn:#9a6200; --bad:#c4183c; --off:#9aa3ad; --said:#6a4fd1; color-scheme:light}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);
+body{margin:0;background:radial-gradient(1100px 420px at 50% -160px,color-mix(in srgb,var(--accent) 12%,transparent),transparent 70%) no-repeat,var(--bg);color:var(--ink);font:14.5px/1.5 var(--sans);
   padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));padding-block:0 60px}
 a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 .wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
-header.top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;
   padding-block:14px 10px;border-bottom:1px solid var(--rule)}
-h1{font-size:18px;margin:0;letter-spacing:-.01em}
-h1 small{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+h1{font:400 30px/1 var(--display);margin:0;letter-spacing:.01em}
+header.top::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--accent) 20%,var(--accent) 80%,transparent);box-shadow:0 0 12px var(--accent);opacity:.75}
+h1 small{font:400 13px var(--sans);color:var(--muted);margin-left:8px}
 nav{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px}
 nav a{color:var(--ink2)}
 .stamp{margin-left:auto;font:12px var(--mono);color:var(--muted)}
 .stamp.stale{color:var(--bad)}
 section{display:flex;flex-direction:column;gap:10px;scroll-margin-top:70px}
-h2{font-size:15px;margin:0;display:flex;gap:10px;align-items:baseline}
+h2{font:400 24px/1.1 var(--display);margin:6px 0 0;display:flex;gap:10px;align-items:baseline}
 h2 .n{font:12px var(--mono);color:var(--muted);font-weight:400}
 h3{font-size:12px;margin:6px 0 0;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
-.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 .pad{padding:12px 14px}
 .alerts{display:flex;flex-direction:column}
 .alert{display:flex;gap:10px;padding:9px 14px;border-top:1px solid var(--rule)} .alert:first-child{border-top:0}
@@ -78,6 +83,22 @@ input:focus-visible,a:focus-visible,th:focus-visible{outline:2px solid var(--acc
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
 pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);overflow-x:auto}
 .muted{color:var(--muted)}
+.afil{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.afil button{font:600 13px var(--sans);min-height:36px;padding:0 14px;border-radius:99px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);cursor:pointer}
+.afil button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.afil button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#ask-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+.asklist{display:flex;flex-direction:column}
+.ask{padding:12px 14px;border-top:1px solid var(--rule);display:grid;gap:8px} .ask:first-child{border-top:0}
+.ask .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:12px var(--mono);color:var(--muted)}
+.ask .txt{margin:0;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.ask .txt.open{display:block}
+.ask ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.ask li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;align-items:start}
+.ask li .t{color:var(--ink)} .ask li .p{grid-column:2;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.st{font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 7px;border-radius:99px;border:1px solid currentColor;white-space:nowrap;margin-top:2px}
+.st.done{color:var(--ok)} .st.said{color:var(--said)} .st.open{color:var(--accent)} .st.waiting{color:var(--warn)} .st.blocked{color:var(--bad)} .st.none,.st.chat{color:var(--muted)}
+.more{padding:10px 14px;border-top:1px solid var(--rule);color:var(--muted);font-size:13px}
 .empty{padding:14px;color:var(--muted)}
 footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);padding-top:12px}
 @media (max-width:560px){.cols2{grid-template-columns:1fr} .stamp{margin-left:0;width:100%} input[type=search]{min-width:0;width:100%}}
@@ -86,15 +107,22 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);paddin
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Homelab Web <small>everything, in detail · Soma is the simple view</small></h1>
+    <h1>Nucleus <small>everything, in detail · Soma is the simple view</small></h1>
     <nav>
-      <a href="#apps">Apps</a><a href="#containers">Containers</a><a href="#proxmox">Proxmox</a><a href="#storage">Storage</a>
+      <a href="#asks">Asks</a><a href="#apps">Apps</a><a href="#containers">Containers</a><a href="#proxmox">Proxmox</a><a href="#storage">Storage</a>
       <a href="#backups">Backups</a><a href="#schedules">Schedules</a><a href="#network">Network</a><a href="#sync">Sync</a>
     </nav>
     <span class="stamp" id="stamp">loading…</span>
   </header>
 
   <section id="alerts"><h2>Needs attention <span class="n" id="alert-n"></span></h2><div class="panel alerts" id="alert-list"><div class="empty">Loading the latest snapshot…</div></div></section>
+  <section id="asks">
+    <h2>Asks <span class="n" id="asks-n"></span></h2>
+    <div class="tiles" id="ask-tiles"></div>
+    <div class="afil" role="group" aria-label="Show asks"><button data-af="todo" aria-pressed="true">To do</button><button data-af="waiting" aria-pressed="false">Your turn</button><button data-af="done" aria-pressed="false">Done</button><button data-af="all" aria-pressed="false">Everything</button>
+      <input type="search" id="ask-q" placeholder="Search your asks…" aria-label="Search your asks"></div>
+    <div class="panel asklist" id="ask-list"><div class="empty">Loading your asks…</div></div>
+  </section>
   <section id="summary"><div class="tiles" id="tiles"></div></section>
   <section id="apps"><h2>Apps <span class="n" id="apps-n"></span></h2><div class="apps" id="app-grid"></div></section>
 
@@ -164,7 +192,7 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);paddin
     </div>
   </section>
 
-  <footer>Read-only. Collected on the homelab VM every 2 minutes by <span class="mono">~/homelab/web/collect.py</span> (homelab-web.timer); this page reloads it every minute. To change things, use Soma, Dockhand or the app itself.</footer>
+  <footer>Read-only. Collected on the homelab VM every 2 minutes by <span class="mono">~/homelab/web/collect.py</span> (homelab-web.timer); this page reloads it every minute. Asks come from the laptop's chat records (<span class="mono">asks-collect.py</span>, every 5 minutes) through Syncthing; Claude records what was done in <span class="mono">~/Projects/asks/ledger.json</span>. To change things, use Soma, Dockhand or the app itself.</footer>
 </div>
 
 <script>
@@ -177,7 +205,41 @@ const dur = s => { if (s == null) return "–"; s = Math.floor(s); const d = Mat
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
 const ago = iso => { const t = Date.parse(iso); return isNaN(t) || t < 0 ? "–" : dur((Date.now()-t)/1000); };
 const rows = (sel, html) => { $(sel+" tbody").innerHTML = html || `<tr><td colspan="9" class="muted">Nothing here.</td></tr>`; };
-let D = null, sortKey = "mem_used", sortDir = -1;
+let D = null, sortKey = "mem_used", sortDir = -1, askF = "todo";
+const ASKL = {done:"Done", said:"Said done", open:"To do", waiting:"Your turn", blocked:"Blocked", chat:"Chat", none:"Not checked"};
+const itemsOf = a => (a.items && a.items.length) ? a.items : [{t:"", s:"none", p:""}];
+const isTodo = s => ["open","waiting","blocked","none",undefined,null].includes(s);
+function renderAsks(){
+  if (!D) return;
+  const A = D.asks || {asks:[], counts:{}}, n = A.counts || {};
+  if (A.missing) { $("#ask-list").innerHTML = `<div class="empty">No asks here yet: they come from the laptop (~/Projects/asks/asks.json).</div>`; $("#ask-tiles").innerHTML = ""; return; }
+  $("#asks-n").textContent = A.updated ? `from the laptop · ${dur(Date.now()/1000 - A.updated)} ago` : "";
+  $("#ask-tiles").innerHTML = [["To do", n.todo, "items still open"], ["Your turn", n.waiting, "waiting on you"], ["Done", n.done, "with proof, or said done"]]
+    .map(([k,v,s]) => `<div class="panel tile"><span class="k">${k}</span><span class="v"${k==="Your turn"&&v?' style="color:var(--warn)"':""}>${v ?? "–"}</span><span class="s">${s}</span></div>`).join("");
+  const q = $("#ask-q").value.trim().toLowerCase();
+  const list = A.asks.filter(a => {
+    const its = itemsOf(a);
+    if (q && !((a.text||"") + " " + its.map(i => (i.t||"") + " " + (i.p||"")).join(" ") + " " + (a.title||"")).toLowerCase().includes(q)) return false;
+    if (askF === "all") return true;
+    if (its.every(i => i.s === "chat")) return false;
+    if (askF === "todo") return its.some(i => isTodo(i.s));
+    if (askF === "waiting") return its.some(i => i.s === "waiting");
+    return its.some(i => i.s === "done" || i.s === "said");
+  });
+  const shown = list.slice(0, 80);
+  $("#ask-list").innerHTML = shown.length ? shown.map(a => {
+    const when = a.at ? new Date(a.at).toLocaleString([], {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
+    const its = itemsOf(a).filter(i => askF === "all" || askF === "done" ? true : i.s !== "chat");
+    return `<div class="ask"><div class="meta"><span>${esc(when)}</span><span>${esc(a.title||"Chat")}</span><span>${esc(a.where||"")}</span></div>
+      <p class="txt">${esc(a.text||"")}</p><ul>${its.map(i => { const s = ASKL[i.s] ? i.s : "none";
+        return `<li><span class="st ${s}">${ASKL[s]}</span><span class="t">${esc(i.t || "The ask above")}</span>${i.p ? `<span class="p">${esc(i.p)}</span>` : ""}</li>`; }).join("")}</ul></div>`;
+  }).join("") + (list.length > shown.length ? `<div class="more">${list.length - shown.length} more: search to narrow them down.</div>` : "")
+    : `<div class="empty">Nothing here with this filter.</div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-af]"); if (b) { askF = b.dataset.af; document.querySelectorAll("[data-af]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderAsks(); return; }
+  const t = e.target.closest(".ask .txt"); if (t) t.classList.toggle("open");
+});
 
 function render(d){
   D = d;
@@ -219,6 +281,7 @@ function render(d){
     }).join("")).join("");
 
   renderContainers();
+  renderAsks();
 
   // proxmox
   $("#pve-n").textContent = p.error ? p.error : `node ${p.node} · ${p.ip}`;
@@ -308,6 +371,7 @@ document.querySelectorAll("th.sort").forEach(th => {
   th.addEventListener("click", go); th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
 });
 $("#ctr-filter").addEventListener("input", renderContainers);
+$("#ask-q").addEventListener("input", renderAsks);
 
 async function load(){
   try {

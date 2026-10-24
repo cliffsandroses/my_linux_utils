@@ -95,7 +95,7 @@ want "Soma's Jellyfin path map ($envf)" grep -qF "SOMA_JF_ROOTS='$SOMA_JF_ROOTS'
     printf '[Service]\nEnvironmentFile=%%h/.config/soma/media-pool.env\n' > "$HOME/.config/systemd/user/soma-next.service.d/media-pool.conf"
     user_systemctl daemon-reload; user_systemctl restart soma-next.service; }; }
 
-log "Homelab Web (http://$VM_IP:8090/web/)"
+log "Nucleus, the detailed view (http://$VM_IP:8090/web/)"
 want "collector installed" cmp -s "$HERE/web/collect.py" "$HL/web/collect.py" || { run mkdir -p "$HL/web"; run cp "$HERE/web/collect.py" "$HL/web/collect.py"; }
 want "page installed" cmp -s "$HERE/web/index.html" "$HL/dashboard/www/web/index.html" || { run mkdir -p "$HL/dashboard/www/web"; run cp "$HERE/web/index.html" "$HL/dashboard/www/web/index.html"; }
 for u in homelab-web.service homelab-web.timer; do

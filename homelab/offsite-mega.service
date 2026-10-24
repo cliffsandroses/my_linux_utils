@@ -1,0 +1,8 @@
+[Unit]
+Description=Off-site copy of the homelab backups on MEGA (restic)
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash %h/Projects/my_linux_utils/homelab/offsite-mega.sh
+Nice=10
+IOSchedulingClass=idle

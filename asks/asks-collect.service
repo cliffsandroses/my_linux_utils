@@ -1,0 +1,6 @@
+[Unit]
+Description=Asks: collect what Moosa asked Claude, for Nucleus
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/Projects/my_linux_utils/asks/asks-collect.py
+Nice=10

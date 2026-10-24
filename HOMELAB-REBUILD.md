@@ -19,7 +19,7 @@ homelab/run.sh pve pve-vm.sh create        # VM 100 from the cloud image (refuse
 homelab/run.sh vm  vm-base.sh              # kernel, packages, swap, DNS stub (reboot once after)
 homelab/run.sh vm  vm-storage.sh           # mounts, media pool, landing folders, NFS
 homelab/run.sh vm  vm-restore.sh           # files from the newest nightly set
-HS_KEY=<key> homelab/run.sh vm vm-apps.sh  # apps in order, databases, Soma, Homelab Web, tailnet
+HS_KEY=<key> homelab/run.sh vm vm-apps.sh  # apps in order, databases, Soma, Nucleus (was Homelab Web), tailnet
 homelab/run.sh pve pve-vm.sh web-token | ssh moosa@192.168.10.20 'umask 077; mkdir -p ~/.config/homelab-web; cat > ~/.config/homelab-web/pve-token'
 homelab/run.sh vm  vm-media-pool.sh        # one library per type in every app
 homelab/run.sh vm  vm-schedules.sh         # crontab, timers, health check
