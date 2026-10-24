@@ -25,6 +25,10 @@ REQUIRED_SYSTEM_UNITS="tailscaled.service"
 IGNORE_FAILED_UNITS=""
 DISK_MOUNTS="/ /home"
 DISK_WARN_PCT=90
+# RAM: warn when less than this % is free, or when tasks spend this % of a minute stalled on
+# memory (/proc/pressure/memory "full"). Both must last CONFIRM_RUNS runs (10 min) to be sent.
+MEM_WARN_PCT=10
+MEM_STALL_PCT=10
 
 # --- backups that must exist -------------------------------------------------
 # Alert when the newest Kopia snapshot of ~ is older than this (0 = don't check).

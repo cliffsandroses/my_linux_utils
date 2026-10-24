@@ -20,6 +20,7 @@ it is sent on the next run that has internet.
 | Any failed systemd unit, system or user | No |
 | `/` and `/home` below 90% | No |
 | Out-of-memory kills | No (needs a readable journal) |
+| RAM: under 10% free, or the system stalling on memory, for 10 minutes (names the 3 biggest programs) | No |
 
 A problem that is still there gets one reminder every 12 h (`REMIND_HOURS`).
 

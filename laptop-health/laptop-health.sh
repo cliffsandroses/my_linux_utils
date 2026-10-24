@@ -216,6 +216,22 @@ if journalctl -k -n 1 -q --no-pager >/dev/null 2>&1; then
   else record memory ok "no out-of-memory kills"; fi
 fi
 
+# ---- RAM: little left, or the system stalling on memory (a 7 GB laptop) -------------------------
+read -r avail total swapfree swaptotal < <(awk '/^MemAvailable:/{a=$2} /^MemTotal:/{t=$2}
+  /^SwapFree:/{sf=$2} /^SwapTotal:/{st=$2} END{print a+0, t+0, sf+0, st+0}' /proc/meminfo)
+if [ "${total:-0}" -gt 0 ]; then
+  pct=$(( avail * 100 / total )); swap_mb=$(( (swaptotal - swapfree) / 1024 ))
+  stall=$(awk '/^full/{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){sub(/avg60=/,"",$i); print $i}}' /proc/pressure/memory 2>/dev/null)
+  top=$(ps -eo rss=,comm= --sort=-rss 2>/dev/null | head -n 3 | awk '{printf "%s %d MB, ", $2, $1/1024}')
+  if [ "$pct" -lt "${MEM_WARN_PCT:-10}" ]; then
+    record ram warn "only ${pct}% of RAM free ($((avail / 1024)) MB, swap used ${swap_mb} MB); biggest: ${top%, }"
+  elif awk -v s="${stall:-0}" -v m="${MEM_STALL_PCT:-10}" 'BEGIN{exit !(s >= m)}'; then
+    record ram warn "the system is stalling on memory (${stall}% of the last minute); biggest: ${top%, }"
+  else
+    record ram ok "${pct}% free ($((avail / 1024)) of $((total / 1024)) MB), swap used ${swap_mb} MB"
+  fi
+fi
+
 # ---- the table -----------------------------------------------------------------------------------
 for i in "${!names[@]}"; do printf '%-18s %-6s %s\n' "${names[$i]}" "${states[$i]}" "${details[$i]}"; done
 [ $REPORT -eq 1 ] && exit 0
