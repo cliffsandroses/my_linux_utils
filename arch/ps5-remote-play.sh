@@ -142,7 +142,8 @@ GUI=0
 if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then GUI=1; ok "desktop session (${XDG_SESSION_TYPE:-unknown})"; else note "no desktop session here (SSH or a TTY): chiaki-ng is not opened"; fi
 
 # ---------------------------------------------------------------- package helpers
-pkg_installed() { pacman -Qq "$1" >/dev/null 2>&1; }
+# Exact name only: `pacman -Qq chiaki` answers "chiaki-ng-bin", because that package provides chiaki.
+pkg_installed() { [ "$(pacman -Qq "$1" 2>/dev/null)" = "$1" ]; }
 
 wait_pacman_lock() {                      # wait for another pacman, or clear a lock left by a crash
   local lock=/var/lib/pacman/db.lck waited=0
@@ -202,6 +203,8 @@ pac_run() {                               # run pacman, fixing the failures that
         fi
         system_upgrade || return 1 ;;
       *"target not found"*|*"could not satisfy dependencies"*|*"unable to satisfy dependency"*)
+        # an out-of-date database only explains this when installing (-S), never when removing
+        [[ $1 == -S* ]] || return 1
         ((UPGRADED)) && return 1
         system_upgrade || return 1 ;;
       *) return 1 ;;
