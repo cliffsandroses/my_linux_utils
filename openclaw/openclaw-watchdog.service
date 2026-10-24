@@ -1,0 +1,6 @@
+[Unit]
+Description=OpenClaw watchdog: restart the gateway when a linked channel is unhealthy
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/openclaw-watchdog
