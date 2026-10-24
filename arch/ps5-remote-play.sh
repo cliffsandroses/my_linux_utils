@@ -103,6 +103,7 @@ summary() {
   ((CHECK)) && note "(--check: nothing was changed)"
 }
 finish() {                                # let the log catch up before the shell prompt comes back
+  kill "${SUDO_KEEPALIVE:-0}" 2>/dev/null
   exec 1>&- 2>&-
   [ -n "${TEE_PID:-}" ] && wait "$TEE_PID" 2>/dev/null
   exit "$1"
@@ -123,7 +124,8 @@ if ((CHECK)); then
   sudo -n true 2>/dev/null && SUDO=1 || note "--check: not asking for sudo, so firewall rules that need it are not read"
 elif sudo -n true 2>/dev/null || sudo -v; then   # -n first: works over SSH with passwordless sudo
   SUDO=1
-  while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done 2>/dev/null &
+  # its own output goes nowhere: holding the log pipe open would stop the script from ever ending
+  while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done >/dev/null 2>&1 &
   SUDO_KEEPALIVE=$!
   trap 'kill "${SUDO_KEEPALIVE:-0}" 2>/dev/null' EXIT
 else
