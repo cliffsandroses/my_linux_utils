@@ -121,7 +121,7 @@ grep -q $'\r' "$0" && warn "this script has Windows line endings: run  dos2unix 
 SUDO=0
 if ((CHECK)); then
   sudo -n true 2>/dev/null && SUDO=1 || note "--check: not asking for sudo, so firewall rules that need it are not read"
-elif sudo -v; then
+elif sudo -n true 2>/dev/null || sudo -v; then   # -n first: works over SSH with passwordless sudo
   SUDO=1
   while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done 2>/dev/null &
   SUDO_KEEPALIVE=$!

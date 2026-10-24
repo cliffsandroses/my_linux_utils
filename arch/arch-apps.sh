@@ -11,7 +11,7 @@
 # - Renamed packages: p7zip is 7zip, libva-mesa-driver is part of mesa, syncthingtray is in
 #   the official repos (not the AUR).
 set -uo pipefail
-sudo -v || exit 1
+sudo -n true 2>/dev/null || sudo -v || exit 1   # -n first: works over SSH with passwordless sudo
 while true; do sudo -n true; sleep 50; kill -0 "$$" 2>/dev/null || exit; done 2>/dev/null &
 
 log() { printf '\n== %s\n' "$*"; }

@@ -15,7 +15,7 @@ IFACE="${LAPTOP_IFACE:-enp2s0}"; IP="${LAPTOP_IP:-192.168.10.30}/${LAN_CIDR:-24}
 DNS="${LAPTOP_DNS:-192.168.10.20 192.168.10.10}"     # AdGuard on the VM, then the DNS fallback CT
 HS_URL="${HEADSCALE_URL:-https://hs.meldev.duckdns.org}"
 log() { printf '\n== %s\n' "$*"; }
-sudo -v || exit 1
+sudo -n true 2>/dev/null || sudo -v || exit 1   # -n first: works over SSH with passwordless sudo
 
 log "Quiet shells: no 'ttyname error' in terminal-less shells"
 # gpm's profile script runs `tty`, which complains in any shell without a terminal (Claude Code's
