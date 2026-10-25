@@ -1,0 +1,4 @@
+#!/bin/bash
+# KDE Connect "Approve prompt" runs this as the user: it answers the one prompt that is waiting, nothing else.
+D=/run/user/$(id -u)/phone-approve
+[ -f "$D/pending" ] && cut -d' ' -f1 "$D/pending" > "$D/ok"

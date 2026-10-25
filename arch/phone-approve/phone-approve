@@ -1,0 +1,22 @@
+#!/bin/bash
+# Answer an admin/fingerprint prompt (polkit, sudo) from the phone (Moosa, 2026-10-26).
+# PAM runs this as root after the fingerprint try times out: it pings the paired phone through KDE Connect and waits
+# up to 25 s for the phone's "Approve prompt" command (KDE Connect -> Run command), which writes this request's token.
+# Exit 0 = approved; anything else falls through to the password.
+set -u
+U=${PAM_USER:-}; [ -n "$U" ] || exit 1
+uid=$(id -u "$U" 2>/dev/null) || exit 1
+D=/run/user/$uid/phone-approve; [ -d /run/user/$uid ] || exit 1
+install -d -m 700 -o "$U" -g "$U" "$D"
+tok=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
+printf '%s %s\n' "$tok" "${PAM_SERVICE:-prompt}" > "$D/pending"; chown "$U:$U" "$D/pending"; chmod 600 "$D/pending"; rm -f "$D/ok"
+dev=$(runuser -u "$U" -- env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus kdeconnect-cli -a --id-only 2>/dev/null | head -1)
+[ -n "$dev" ] || exit 1
+what=${PAM_SERVICE:-prompt}; [ "$what" = polkit-1 ] && what="an admin prompt"
+runuser -u "$U" -- env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus kdeconnect-cli -d "$dev" \
+  --ping-msg "Laptop asks to approve $what. KDE Connect → Run command → Approve prompt (25 s)" >/dev/null 2>&1
+for _ in $(seq 50); do
+  if [ -f "$D/ok" ] && [ "$(cat "$D/ok" 2>/dev/null)" = "$tok" ]; then rm -f "$D/ok" "$D/pending"; logger -t phone-approve "approved $what for $U"; exit 0; fi
+  sleep 0.5
+done
+rm -f "$D/pending"; exit 1
