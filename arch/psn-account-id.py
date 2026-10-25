@@ -60,3 +60,13 @@ if __name__ == "__main__":
     aid = account_id(npsso)
     print("\nYour PSN Account ID for chiaki-ng (paste this into the PSN Account ID box):\n")
     print("   ", encode(aid), "\n")
+    # Save it where chiaki-ng reads it (Settings -> PSN Account ID), so registration has it pre-filled.
+    import pathlib, re
+    conf = pathlib.Path.home() / ".config/Chiaki/Chiaki.conf"
+    if conf.exists():
+        t = conf.read_text()
+        line = f"psn_account_id={encode(aid)}"
+        t = re.sub(r"(?m)^psn_account_id=.*$", line, t) if re.search(r"(?m)^psn_account_id=", t) else \
+            (t.replace("[settings]\n", f"[settings]\n{line}\n", 1) if "[settings]\n" in t else t + f"\n[settings]\n{line}\n")
+        conf.write_text(t)
+        print(f"Saved in {conf}. Next: PS5 Settings > System > Remote Play > Link Device, then type the PIN in chiaki-ng.")
