@@ -108,6 +108,13 @@ pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);o
 .empty{padding:14px;color:var(--muted)}
 footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);padding-top:12px}
 @media (max-width:560px){.cols2{grid-template-columns:1fr} .stamp{margin-left:0;width:100%} input[type=search]{min-width:0;width:100%}}
+.hello{font:500 1.15rem/1.4 var(--sans);color:var(--ink);padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--rule);display:flex;gap:12px;align-items:center}
+.hello .bulb{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:0 0 12px currentColor}
+section>h2{cursor:pointer;user-select:none}section>h2::after{content:"▾";font:14px var(--sans);color:var(--muted);margin-left:8px;display:inline-block;transition:transform .2s}
+section.shut>h2::after{transform:rotate(-90deg)}section.shut>:not(h2){display:none!important}
+header.top nav a.on,header.top a.on{color:var(--accent);text-decoration:underline;text-underline-offset:6px}
+section{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+@media (prefers-reduced-motion:reduce){section{animation:none}}
 </style>
 </head>
 <body>
@@ -121,6 +128,7 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--rule);paddin
     <span class="stamp" id="stamp">loading…</span>
   </header>
 
+  <div class="hello" id="hello">Checking the homelab…</div>
   <section id="alerts"><h2>Needs attention <span class="n" id="alert-n"></span></h2><div class="panel alerts" id="alert-list"><div class="empty">Loading the latest snapshot…</div></div></section>
   <section id="asks">
     <h2>Docket <span class="n" id="asks-n"></span></h2>
@@ -389,6 +397,24 @@ async function load(){
   }
 }
 load(); setInterval(load, 60000);
+// Friendlier (Moosa, 2026-10-26): one line that says how things are, sections that fold (remembered), the menu follows you
+(() => {
+  const shut = new Set(JSON.parse(localStorage.getItem("nuc-shut") || "[]"));
+  document.querySelectorAll("section[id]").forEach(sec => { const h = sec.querySelector(":scope>h2"); if (!h) return;
+    if (shut.has(sec.id)) sec.classList.add("shut");
+    h.title = "Click to fold or open"; h.addEventListener("click", () => { sec.classList.toggle("shut");
+      sec.classList.contains("shut") ? shut.add(sec.id) : shut.delete(sec.id); localStorage.setItem("nuc-shut", JSON.stringify([...shut])) }) });
+  const links = [...document.querySelectorAll('header.top a[href^="#"]')];
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id)) }), { rootMargin: "-40% 0px -55% 0px" });
+  document.querySelectorAll("section[id]").forEach(s => io.observe(s));
+  const hello = () => { if (!D) return; const bad = D.alerts.filter(a => a.level === "bad").length, warn = D.alerts.filter(a => a.level === "warn").length;
+    const run = D.containers.filter(c => c.state === "running").length, down = D.apps.filter(a => a.url && !a.up).length;
+    const [col, msg] = bad ? ["var(--bad)", `${bad} thing${bad > 1 ? "s are" : " is"} down. See Needs attention below.`]
+      : warn ? ["var(--warn)", `Everything is running (${run} containers). ${warn} thing${warn > 1 ? "s" : ""} worth a look below.`]
+      : ["var(--ok)", `All good: ${run} containers running${down ? `, ${down} app${down > 1 ? "s" : ""} not answering` : ""}, backups and disks healthy.`];
+    document.getElementById("hello").innerHTML = `<span class="bulb" style="color:${col};background:${col}"></span><span>${msg}</span>` };
+  const r0 = render; render = d => { r0(d); hello() }; hello();
+})();
 </script>
 </body>
 </html>
