@@ -18,6 +18,12 @@ if command -v pacman >/dev/null; then
     pacman -Qqem > "$out/pkglist-aur.txt"
 fi
 command -v flatpak >/dev/null && flatpak list --app --columns=application > "$out/flatpaks.txt"
+# System settings changed by hand (2026-10-26: zram/oomd, phone approval in PAM, sysctl): the readable ones, so a
+# reinstall gets them back. Secrets in /etc (shadow, ssh host keys) are root-only and stay out.
+tar -czf "$out/etc-config.tar.gz" --ignore-failed-read -C / \
+    etc/pam.d etc/systemd/zram-generator.conf etc/sysctl.d etc/fstab etc/pacman.conf etc/mkinitcpio.conf \
+    etc/udev/rules.d etc/X11/xorg.conf.d etc/modprobe.d etc/hostname etc/locale.conf etc/vconsole.conf 2>/dev/null || true
+ls /usr/local/bin > "$out/usr-local-bin.txt" 2>/dev/null || true
 command -v ludusavi >/dev/null && ludusavi backup --force >/dev/null
 date -Is > "$out/last-run.txt"
 
