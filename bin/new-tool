@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# new-tool <name>: start a tool from the template (forge README, step 1)
+set -euo pipefail
+n=${1:?name the tool}; d="$(dirname "$0")/../tools/$n"
+[ -e "$d" ] && { echo "tools/$n already exists"; exit 1; }
+mkdir -p "$d" && sed "s/<name>/$n/" "$(dirname "$0")/../TEMPLATE.md" > "$d/README.md" && echo "tools/$n/README.md: fill in the four lines"
