@@ -89,6 +89,14 @@ pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);o
 .afil button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .afil button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #ask-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ask header{display:flex;align-items:baseline;gap:10px;justify-content:space-between}.ask h3{margin:0;font-size:16px;font-weight:600;line-height:1.35;font-family:inherit;text-transform:none;letter-spacing:0;color:var(--ink)}
+.ask .cnt{font:12px var(--mono);color:var(--muted)}.ask .tag{padding:1px 8px;border-radius:99px;border:1px solid var(--rule)}.ask .tag.wait{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}.ask .tag.done{color:var(--ok,#4ade80)}
+.ask.wait{box-shadow:inset 3px 0 0 var(--warn)}.ask.todo{box-shadow:inset 3px 0 0 var(--accent)}.ask.done{opacity:.78}
+.chk{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:8px}.chk li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start}
+.chk li>div{display:grid;gap:2px}.chk .t{color:var(--ink)}.chk li.ok .t{color:var(--muted)}.ask .chk li .p{grid-column:auto;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}.chk .p a{color:var(--accent)}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid color-mix(in srgb,var(--ink) 40%,transparent);display:grid;place-items:center;font:700 12px/1 var(--mono);margin-top:1px}
+.cb.on{background:color-mix(in srgb,var(--ok,#4ade80) 22%,transparent);border-color:var(--ok,#4ade80);color:var(--ok,#4ade80)}.cb.wait{border-color:var(--warn);color:var(--warn)}.cb.blk{border-color:var(--bad,#f87171);color:var(--bad,#f87171)}
+.ask details.said summary{cursor:pointer;font-size:12.5px;color:var(--muted)}.ask details.said .txt{margin:6px 0 0;-webkit-line-clamp:unset}
 .asklist{display:flex;flex-direction:column}
 .ask{padding:12px 14px;border-top:1px solid var(--rule);display:grid;gap:8px} .ask:first-child{border-top:0}
 .ask .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:12px var(--mono);color:var(--muted)}
@@ -240,13 +248,23 @@ function renderAsks(){
     if (askF === "waiting") return its.some(i => i.s === "waiting");
     return its.some(i => i.s === "done" || i.s === "said");
   });
-  const shown = list.slice(0, 80);
+  /* 2026-10-26, Moosa: "a proper checklist so I know what is going on for what". Each ask is a card: a heading, a
+     progress count, then a checklist: a box per item (✓ done, ! your turn, empty to do), its proof under it with links
+     you can open. Your turn sorts first, then to do, then done; what you asked folds open under the heading. */
+  const RANK = a => { const its = itemsOf(a); return its.some(i => i.s === "waiting") ? 0 : its.some(i => isTodo(i.s)) ? 1 : 2 };
+  const shown = list.slice(0, 80).sort((x, y) => RANK(x) - RANK(y) || String(y.at || "").localeCompare(String(x.at || "")));
+  const box = s => s === "done" || s === "said" ? '<span class="cb on" title="Done">✓</span>' : s === "waiting" ? '<span class="cb wait" title="Your turn">!</span>' : s === "blocked" ? '<span class="cb blk" title="Blocked">×</span>' : '<span class="cb" title="To do"></span>';
+  const link = t => esc(t).replace(/(https?:\/\/[^\s<)"]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  const head = a => (a.id || "").startsWith("laptop-") && a.title ? a.title : ((a.text || "Chat").split(/\n|(?<=[.?!])\s/)[0]).slice(0, 96);
   $("#ask-list").innerHTML = shown.length ? shown.map(a => {
     const when = a.at ? new Date(a.at).toLocaleString([], {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
     const all = itemsOf(a), its = all.filter(i => askF === "all" ? true : i.s !== "chat" && (i.t || i.p)), dn = all.filter(i => i.s === "done" || i.s === "said").length, real = all.filter(i => i.s !== "chat").length;
-    return `<div class="ask"><div class="meta"><span>${esc(when)}</span><span>${esc(a.title||"Chat")}</span><span>${esc(a.where||"")}</span></div>
-      <p class="txt">${esc(a.text||"")}</p>${real ? `<div class="prog" title="${dn} of ${real} done"><i style="width:${Math.round(dn / real * 100)}%"></i></div>` : ""}<ul>${its.map(i => { const s = ASKL[i.s] ? i.s : "none";
-        return `<li><span class="st ${s}">${ASKL[s]}</span><span class="t">${esc(i.t || "The ask above")}</span>${i.p ? `<span class="p">${esc(i.p)}</span>` : ""}</li>`; }).join("")}</ul></div>`;
+    const st = RANK(a) === 0 ? "wait" : RANK(a) === 1 ? "todo" : "done";
+    return `<article class="ask ${st}"><header><h3>${esc(head(a))}</h3><span class="cnt">${real ? `${dn}/${real}` : ""}</span></header>
+      <div class="meta"><span>${esc(when)}</span><span>${esc(a.where||"")}</span><span class="tag ${st}">${st === "wait" ? "Your turn" : st === "todo" ? "In progress" : "Done"}</span></div>
+      ${real ? `<div class="prog" title="${dn} of ${real} done"><i style="width:${Math.round(dn / real * 100)}%"></i></div>` : ""}
+      <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
+      <details class="said"><summary>What you asked</summary><p class="txt open">${esc(a.text||"")}</p></details></article>`;
   }).join("") + (list.length > shown.length ? `<div class="more">${list.length - shown.length} more: search to narrow them down.</div>` : "")
     : `<div class="empty">Nothing here with this filter.</div>`;
 }
