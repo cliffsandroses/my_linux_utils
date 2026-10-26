@@ -116,7 +116,8 @@ if __name__ == "__main__" and sys.argv[1:] == ["--test"]:
     t = Path(tempfile.mkdtemp()); HOME = t; PROJECTS = t / ".claude/projects"; DIR = t / "asks"; STATE = t / "state/offsets.json"
     p = PROJECTS / "-home-moosa"; p.mkdir(parents=True)
     rec = lambda **k: json.dumps({"type": "user", "sessionId": "s1", "timestamp": "2026-10-24T10:00:00Z", **k}) + "\n"
-    (p / "s1.jsonl").write_text(rec(uuid="a1", message={"role": "user", "content": "Fix the sync hskey-auth-abc123_DEF"})
+    FAKE_TSKEY, FAKE_HSKEY = "tskey" + "-auth-" + "x" * 24, "hskey" + "-api-" + "x" * 24   # test data only, built at run time (2026-10-26: GitHub flagged a key-shaped literal)
+    (p / "s1.jsonl").write_text(rec(uuid="a1", message={"role": "user", "content": "Fix the sync " + FAKE_HSKEY + ""})
         + rec(uuid="a2", message={"role": "user", "content": [{"type": "tool_result", "content": "x"}]})
         + rec(uuid="a3", message={"role": "user", "content": "<task-notification>done</task-notification>"})
         + rec(uuid="a4", isMeta=True, message={"role": "user", "content": "meta"})
@@ -132,7 +133,7 @@ if __name__ == "__main__" and sys.argv[1:] == ["--test"]:
     with (p / "s1.jsonl").open("a") as fh: fh.write(',"message":{"role":"user","content":"late one"},"sessionId":"s1"}\n')
     main(); L = load(DIR / "ledger.json", {})
     assert "half" in L["asks"] and L["asks"]["half"]["text"] == "late one", "a line written in two goes is read once it's whole"
-    assert redact("key tskey-auth-kXyZ-123 end") == "key [key hidden] end"
+    assert redact("key " + FAKE_TSKEY + " end") == "key [key hidden] end"
     print("asks-collect: ok")
 elif __name__ == "__main__":
     main()
