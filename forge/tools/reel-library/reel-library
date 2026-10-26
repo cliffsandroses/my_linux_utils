@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""reel-library (Moosa, 2026-10-26): "transcribe all my reels using FreeLLMAPI, keep the video so you can work on each one,
+group them, flag any NSFW content and tell me where it is with the link."
+Input: a list of reel/post links, one per line, or Instagram's export file saved_posts.json (Accounts Center → Your
+information → Download → Saved, JSON). Never logs in: `reel` fetches each one without an account, slowly.
+For each: ~/reels-library/<code>/<code>.mp4 + caption, the transcript (homelab FreeLLMAPI /v1/audio/transcriptions),
+then a free model gives a topic group, a one-line summary and an NSFW verdict. Writes index.md (by group, NSFW first, each
+with its link) and index.json. Re-running skips what's done.
+    reel-library links.txt            reel-library saved_posts.json            reel-library --index-only"""
+import json, os, re, subprocess, sys, time, urllib.request
+from pathlib import Path
+LIB = Path.home() / "reels-library"; LIB.mkdir(exist_ok=True)
+STT = os.environ.get("CLIPPER_STT_URL", "http://192.168.10.20:3001/v1/audio/transcriptions")
+
+def key():
+    m = re.search(r"^FREELLMAPI_API_KEY=[\"']?([^\"'\n]+)", (Path.home() / ".openclaw/.env").read_text(), re.M)
+    return m.group(1) if m else ""
+
+def links(src):
+    t = Path(src).read_text()
+    if src.endswith(".json"):   # Instagram's export: every href in it
+        t = "\n".join(re.findall(r'"href":\s*"([^"]+)"', t))
+    return list(dict.fromkeys(re.findall(r"https?://(?:www\.)?instagram\.com/(?:reel|p|reels)/[A-Za-z0-9_-]+", t)))
+
+def transcribe(mp4):
+    wav = mp4.with_suffix(".mp3")
+    if not wav.exists(): subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(mp4), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", str(wav)], check=True)
+    b = "----reellib"; body = (f"--{b}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-large-v3\r\n--{b}\r\n"
+        f"Content-Disposition: form-data; name=\"file\"; filename=\"a.mp3\"\r\nContent-Type: audio/mpeg\r\n\r\n").encode() + wav.read_bytes() + f"\r\n--{b}--\r\n".encode()
+    r = urllib.request.Request(STT, body, {"Authorization": "Bearer " + key(), "Content-Type": "multipart/form-data; boundary=" + b})
+    return json.load(urllib.request.urlopen(r, timeout=300)).get("text", "").strip()
+
+def judge(caption, text):
+    p = ("You sort someone's saved Instagram reels. From the caption and transcript below, answer with JSON only: "
+         '{"group": "<2-3 word topic, e.g. Fitness, Cooking, Tech, Comedy, Anime, Cars, Monster cans>", "summary": "<one line>", '
+         '"nsfw": <true if sexual, nudity, gore or strongly explicit content>, "why": "<if nsfw: what and roughly when>"}\n\n'
+         f"Caption: {caption[:800]}\nTranscript: {text[:3000]}")
+    out = ""
+    for _ in range(2):                                              # free models can be slow: try twice, then leave it Unsorted
+        try: out = subprocess.run([str(Path.home() / ".local/bin/freellm"), p], capture_output=True, text=True, timeout=120).stdout; break
+        except subprocess.TimeoutExpired: time.sleep(5)
+    m = re.search(r"\{.*\}", out, re.S)
+    try: return json.loads(m.group(0))
+    except Exception: return {"group": "Unsorted", "summary": "", "nsfw": False, "why": ""}
+
+def index():
+    rows = [json.loads(f.read_text()) for f in sorted(LIB.glob("*/info.json"))]
+    (LIB / "index.json").write_text(json.dumps(rows, indent=1))
+    md = [f"# Reel library ({len(rows)} reels)\n"]
+    bad = [r for r in rows if r.get("nsfw")]
+    if bad: md += ["## Flagged NSFW\n"] + [f"- [{r['code']}]({r['url']}): {r.get('why') or r.get('summary','')}" for r in bad] + [""]
+    for g in sorted({r.get("group", "Unsorted") for r in rows}):
+        md += [f"## {g}\n"] + [f"- [{r['code']}]({r['url']}){' ⚠ NSFW' if r.get('nsfw') else ''}: {r.get('summary','')}" for r in rows if r.get("group", "Unsorted") == g] + [""]
+    (LIB / "index.md").write_text("\n".join(md)); print(f"index: {LIB/'index.md'} ({len(rows)} reels, {len(bad)} flagged)")
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["--index-only"]: index(); sys.exit()
+    for n, url in enumerate(links(sys.argv[1])):
+        code = url.rstrip("/").split("/")[-1]; d = LIB / code; info = d / "info.json"
+        if info.exists(): continue
+        if not list(d.glob("*.mp4")):
+            r = subprocess.run([str(Path.home() / ".local/bin/reel"), url, str(d)], capture_output=True, text=True)
+            if r.returncode: print("skip", code, r.stdout.strip()[-120:]); time.sleep(20); continue
+            time.sleep(12)                                              # gentle on Instagram: one every ~15 s
+        mp4 = next(d.glob("*.mp4")); cap = (d / f"{code}.txt").read_text() if (d / f"{code}.txt").exists() else ""
+        try: text = transcribe(mp4)
+        except Exception as e: text = ""; print("no transcript", code, e)
+        (d / "transcript.txt").write_text(text)
+        j = judge(cap, text); info.write_text(json.dumps({"code": code, "url": url, "caption": cap, **j}, ensure_ascii=False))
+        print(f"{n+1}: {code} → {j.get('group')}{' ⚠ NSFW' if j.get('nsfw') else ''}")
+    index()

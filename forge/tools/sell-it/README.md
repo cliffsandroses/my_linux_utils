@@ -18,3 +18,12 @@
 | Bookshelf speakers | ₹12,000–1,40,000 | needs the brand and model |
 | Home theatre / sound system | ₹800–85,000 (median ~₹15,500) | needs the brand and model |
 | Party speaker | ₹500–17,000 | needs the brand and model |
+
+## The items (photos 2026-10-26, Immich) and prices
+| Item | What's included | OLX Bangalore now | List at | Floor |
+|---|---|---|---|---|
+| PS2 Slim, black | 2 DualShock 2 controllers, EyeToy camera, AV cable, power cable | ₹5,000–10,000 (few listings) | ₹5,500 | ₹4,200 |
+| Philips 5.1 multimedia speakers | subwoofer, 5 satellites, wired remote | ₹4,000–15,000 (few; most are newer) | ₹2,500 | ₹1,800 |
+| Creative SBS A300 (2.1) | subwoofer + 2 satellites, original box | none listed | ₹1,200 | ₹900 |
+| Workout bench (scratched) | | ₹1,700–12,000 | ₹2,200 | ₹1,600 |
+Write-ups: say it works (test each before listing), name the scratches, "pickup in Bangalore". Photos: the Immich set is good.

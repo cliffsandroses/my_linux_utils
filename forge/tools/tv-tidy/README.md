@@ -1,20 +1,21 @@
 # tv-tidy
 
-- **I want to:** a TV without ads, sponsored rows and slow bloat ("debloat it, as people are doing now").
+- **I want to:** an LG TV without ads, sponsored rows and slow bloat.
 - **Where I'll use it:** the TV, from the laptop on the same Wi-Fi.
 - **Done when:** the home screen is clean and fast, and every change can be undone.
-- **Must never:** uninstall system packages (disable only), touch anything whose job is unclear, or leave debugging on.
+- **Must never:** brick the TV, or leave a root exploit open.
 
-## Works on
-Android TV / Google TV (Sony, TCL, Xiaomi, Hisense, OnePlus…). **Not** Samsung (Tizen), LG (webOS) or Roku: different systems.
-Which TV is it? Settings → About shows the model. On the 2026-10-26 scan no TV answered on the home network (it was off,
-or it's on another network).
+## The TV
+LG, webOS (vault: Homelab/README.md). The exact model and webOS version decide what's possible: Settings →
+General → About This TV (or "Support" → TV Information) shows both; the sticker on the back has the model too.
 
-## Plan
-1. On the TV: Settings → Device Preferences → About → tap Build 7 times; Developer options → USB/network debugging on.
-2. Laptop: `adb connect <tv-ip>` (android-tools, FOSS: <https://android.googlesource.com/platform/packages/modules/adb/>), accept the prompt on the TV.
-3. List packages; disable ads/telemetry/bloat with `pm disable-user --user 0 <pkg>`, one batch at a time, each logged with its undo (`pm enable`) in `tv-tidy.log`.
-4. Optional: a clean launcher, FLauncher (FOSS, <https://gitlab.com/flauncher/flauncher>), and SmartTube for ad-free YouTube (FOSS, <https://github.com/yuliskov/SmartTube>).
-5. Turn debugging off at the end.
-
-Background: [Android Authority on TV "vibe hacking"](https://www.androidauthority.com/android-tv-vibe-hacking-remove-ads-bloatware-3725338/), [It's FOSS](https://itsfoss.com/news/debloat-smart-tv/).
+## Plan (three levels; stop where you're happy)
+1. **No hacking (10 min):** Settings → General → Additional Settings → Home Promotion **off**, Content Recommendation **off**;
+   Settings → Support → Privacy & Terms: decline Viewing Information, Voice, Interest-Based Ads; Live Plus off.
+2. **Block the ad servers on the network:** the homelab's DNS blocker (AdGuard Home, FOSS
+   <https://github.com/AdguardTeam/AdGuardHome>) with an LG ad/telemetry list (e.g. `ngfts.lge.com`, `ad.lgappstv.com`,
+   `lgtvsdp.com` ads hosts) for the TV's IP only.
+3. **Homebrew** (FOSS: webOS Homebrew Channel <https://github.com/webosbrew/webos-homebrew-channel>): with the model and
+   firmware, check <https://rootmy.tv> / <https://www.webosbrew.org> for a working root (it depends on the version). Without
+   root, Developer Mode works but expires every ~50 hours. Then: an ad-free YouTube (youtube-webos, FOSS
+   <https://github.com/webosbrew/youtube-webos>) and a launcher without promotions.
