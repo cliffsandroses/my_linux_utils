@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Fetch an Instagram reel's caption + video without touching Moosa's own account (2026-10-26: Instagram rate-limited
+# cliffsandroses after heavy use). Order: 1) no account at all (yt-dlp + the public embed page), 2) a separate "reader"
+# account (session made once with: instaloader --login <reader>; name kept in ~/.config/clipper/ig-reader), 3) never the
+# main account unless IG_ALLOW_MAIN=1.
+#   reel <url or shortcode> [out dir]       → <dir>/<code>.mp4, <dir>/<code>.txt
+set -euo pipefail
+code=$(printf '%s' "${1:?reel url or shortcode}" | sed -E 's#.*/(reel|p)/([^/?]+).*#\2#'); out=${2:-$HOME/reels-dl/$code}; mkdir -p "$out"
+Y=~/.local/share/whisper-venv/bin/yt-dlp; IL=~/.local/share/whisper-venv/bin/instaloader
+curl -s -m15 -A "Mozilla/5.0" "https://www.instagram.com/reel/$code/embed/captioned/" | python3 -c '
+import sys,re,html; s=sys.stdin.read(); m=re.search(r"class=\"Caption\".*?</a>(.*?)<div class=\"CaptionComments", s, re.S)
+print(html.unescape(re.sub(r"<[^>]+>","",m.group(1))).strip() if m else "")' > "$out/$code.txt" || true
+if $Y -q --no-warnings -o "$out/$code.%(ext)s" "https://www.instagram.com/reel/$code/" 2>/dev/null; then echo "got $code (no account)"; exit 0; fi
+reader=$(cat ~/.config/clipper/ig-reader 2>/dev/null || true)
+if [ -n "$reader" ] && [ -f ~/.config/instaloader/session-$reader ]; then
+  sleep $((RANDOM % 6 + 4))                                       # gentle: never back-to-back requests
+  ( cd "$out" && $IL --login "$reader" --no-pictures --no-video-thumbnails --no-metadata-json --dirname-pattern=. --filename-pattern="$code" -- "-$code" >/dev/null ) && { echo "got $code (reader $reader)"; exit 0; }
+fi
+[ "${IG_ALLOW_MAIN:-0}" = 1 ] && ( cd "$out" && $IL --login cliffsandroses --no-pictures --no-video-thumbnails --no-metadata-json --dirname-pattern=. --filename-pattern="$code" -- "-$code" ) && exit 0
+echo "Couldn't get $code without an account. Set up a reader account: see ~/Projects/clipper/kaggle/README.md (Instagram)"; exit 1

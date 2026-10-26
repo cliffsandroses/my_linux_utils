@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Automatic stream / dev mode (Moosa, 2026-10-25). Every 20 s (automode.timer):
+#   stream - chiaki running, or any app playing audio/video (Jellyfin, browser, mpv)  -> OpenClaw + Syncthing off, clip jobs frozen (resume after)
+#   dev    - Claude Code busy in the last minute                                      -> OpenClaw paused
+#   idle   - neither for 10 minutes                                                   -> OpenClaw and Syncthing back; clips get made
+# The laptop has 7 GB; OpenClaw alone takes ~1.2 GB, which made Remote Play stutter.
+set -uo pipefail
+S=${XDG_STATE_HOME:-$HOME/.local/state}/automode; mkdir -p "$S"
+cpu() { local t=0 p; for p in $(pgrep -x claude); do t=$((t + $(awk '{print $14+$15}' /proc/$p/stat 2>/dev/null || echo 0))); done; echo $t; }
+now=$(date +%s); c=$(cpu); read -r pc pt < "$S/cpu" 2>/dev/null || { pc=$c; pt=$now; }
+echo "$c $now" > "$S/cpu"
+mode=idle
+# stream = Remote Play, or a video player actually playing (Jellyfin, mpv, VLC); music or a YouTube tab doesn't count
+playing() { pactl list sink-inputs 2>/dev/null | awk 'BEGIN{RS="Sink Input #"} /Corked: no/ && tolower($0) ~ /jellyfin|mpv|vlc|delfin|celluloid|chiaki/ {f=1} END{exit !f}'; }
+if pgrep -x chiaki >/dev/null || playing; then mode=stream
+elif [ $(( (c - pc) * 100 / $(getconf CLK_TCK) )) -gt $(( (now - pt) * 10 )) ]; then mode=dev; fi   # claude >10% CPU since last check
+[ "$mode" != idle ] && echo "$now" > "$S/busy"
+last=$(cat "$S/busy" 2>/dev/null || echo 0); old=$(cat "$S/mode" 2>/dev/null || echo idle)
+[ "$mode" = idle ] && [ $((now - last)) -lt 600 ] && mode=$old          # wait 10 min of quiet before waking OpenClaw
+# idle: make clips from new VODs, one heavy job at a time, at most every 30 min
+if [ "$mode" = idle ] && [ "$old" = idle ] && [ $((now - $(cat "$S/clip" 2>/dev/null || echo 0))) -gt 1800 ]; then
+  echo "$now" > "$S/clip"; systemctl --user start --no-block clipper-auto; fi
+[ "$mode" = "$old" ] && exit 0
+echo "$mode" > "$S/mode"
+case $mode in
+  stream) systemctl --user stop openclaw-gateway syncthing; systemctl --user freeze clipper-auto clip-now 2>/dev/null ;;   # frozen, not lost
+  dev)    systemctl --user stop openclaw-gateway; systemctl --user thaw clipper-auto clip-now 2>/dev/null; systemctl --user start syncthing ;;
+  idle)   systemctl --user thaw clipper-auto clip-now 2>/dev/null; systemctl --user start openclaw-gateway syncthing ;;
+esac
+logger -t automode "$old -> $mode"; notify-send -a Automode "Mode: $mode" "OpenClaw $([ $mode = idle ] && echo on || echo paused)" 2>/dev/null || true

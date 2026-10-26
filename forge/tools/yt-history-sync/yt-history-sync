@@ -1,0 +1,13 @@
+#!/bin/bash
+# Moosa's YouTube watch history (newest 150) from his Brave sign-in, for Soma → Media → Watched. Every 6 h (timer).
+set -euo pipefail
+out=$(mktemp)
+~/.local/share/whisper-venv/bin/yt-dlp --no-warnings --cookies-from-browser brave --flat-playlist --playlist-end 150 \
+  --print "%(id)s	%(title)s	%(channel)s" ":ythistory" 2>/dev/null > "$out" || true
+[ -s "$out" ] || { echo "no history read (Brave signed out?)"; exit 1; }
+python3 - "$out" <<'P' | ssh -o ConnectTimeout=10 moosa@192.168.10.20 'cat > ~/.local/share/soma-next/yt-history.json'
+import json,sys,time
+items=[dict(zip(("id","title","channel"),l.rstrip("\n").split("\t"))) for l in open(sys.argv[1]) if l.strip()]
+print(json.dumps({"at":time.strftime("%Y-%m-%dT%H:%M:%S%z"),"items":items}))
+P
+echo "sent $(wc -l < "$out") videos"; rm -f "$out"
