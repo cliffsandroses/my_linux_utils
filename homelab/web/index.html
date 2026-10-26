@@ -97,6 +97,7 @@ pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);o
 .cb{width:18px;height:18px;border-radius:5px;border:1.5px solid color-mix(in srgb,var(--ink) 40%,transparent);display:grid;place-items:center;font:700 12px/1 var(--mono);margin-top:1px}
 .cb.on{background:color-mix(in srgb,var(--ok,#4ade80) 22%,transparent);border-color:var(--ok,#4ade80);color:var(--ok,#4ade80)}.cb.wait{border-color:var(--warn);color:var(--warn)}.cb.blk{border-color:var(--bad,#f87171);color:var(--bad,#f87171)}
 .ask details.said summary{cursor:pointer;font-size:12.5px;color:var(--muted)}.ask details.said .txt{margin:6px 0 0;-webkit-line-clamp:unset}
+.ask .hid{margin:0;font-size:12px;color:var(--muted)}
 .asklist{display:flex;flex-direction:column}
 .ask{padding:12px 14px;border-top:1px solid var(--rule);display:grid;gap:8px} .ask:first-child{border-top:0}
 .ask .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:12px var(--mono);color:var(--muted)}
@@ -141,7 +142,7 @@ section{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rise{from{op
   <section id="asks">
     <h2>Docket <span class="n" id="asks-n"></span></h2>
     <div class="tiles" id="ask-tiles"></div>
-    <div class="afil" role="group" aria-label="Show asks"><button data-af="todo" aria-pressed="true">To do</button><button data-af="waiting" aria-pressed="false">Your turn</button><button data-af="done" aria-pressed="false">Done</button><button data-af="all" aria-pressed="false">Everything</button>
+    <div class="afil" role="group" aria-label="Show steps"><button data-af="waiting" aria-pressed="true">Your steps</button><button data-af="todo" aria-pressed="false">Claude's steps</button><button data-af="blocked" aria-pressed="false">Blocked</button><button data-af="done" aria-pressed="false">Done</button><button data-af="all" aria-pressed="false">Everything</button>
       <input type="search" id="ask-q" placeholder="Search your asks…" aria-label="Search your asks"></div>
     <div class="panel asklist" id="ask-list"><div class="empty">Loading your asks…</div></div>
   </section>
@@ -227,7 +228,8 @@ const dur = s => { if (s == null) return "–"; s = Math.floor(s); const d = Mat
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
 const ago = iso => { const t = Date.parse(iso); return isNaN(t) || t < 0 ? "–" : dur((Date.now()-t)/1000); };
 const rows = (sel, html) => { $(sel+" tbody").innerHTML = html || `<tr><td colspan="9" class="muted">Nothing here.</td></tr>`; };
-let D = null, sortKey = "mem_used", sortDir = -1, askF = "todo";
+let D = null, sortKey = "mem_used", sortDir = -1, askF = "waiting";
+const STEP = { waiting: i => i.s === "waiting", todo: i => i.s !== "chat" && i.s !== "waiting" && i.s !== "blocked" && i.s !== "done" && i.s !== "said", blocked: i => i.s === "blocked", done: i => i.s === "done" || i.s === "said", all: i => true };
 const ASKL = {done:"Done", said:"Said done", open:"To do", waiting:"Your turn", blocked:"Blocked", chat:"Chat", none:"Not checked"};
 const itemsOf = a => (a.items && a.items.length) ? a.items : [{t:"", s:"none", p:""}];
 const isTodo = s => ["open","waiting","blocked","none",undefined,null].includes(s);
@@ -238,19 +240,20 @@ function renderAsks(){
   $("#asks-n").textContent = A.updated ? `from the laptop · ${dur(Date.now()/1000 - A.updated)} ago` : "";
   $("#ask-tiles").innerHTML = [["To do", n.todo, "items still open"], ["Your turn", n.waiting, "waiting on you"], ["Done", n.done, "with proof, or said done"]]
     .map(([k,v,s]) => `<div class="panel tile"><span class="k">${k}</span><span class="v"${k==="Your turn"&&v?' style="color:var(--warn)"':""}>${v ?? "–"}</span><span class="s">${s}</span></div>`).join("");
+  { const every = A.asks.flatMap(itemsOf); document.querySelectorAll("[data-af]").forEach(b => { const k = b.dataset.af, n2 = k === "all" ? A.asks.length : every.filter(STEP[k]).length;
+      b.dataset.n = n2; b.textContent = b.textContent.replace(/ \d+$/, "") + " " + n2 }) }
   const q = $("#ask-q").value.trim().toLowerCase();
   const list = A.asks.filter(a => {
     const its = itemsOf(a);
     if (q && !((a.text||"") + " " + its.map(i => (i.t||"") + " " + (i.p||"")).join(" ") + " " + (a.title||"")).toLowerCase().includes(q)) return false;
     if (askF === "all") return true;
-    if (its.every(i => i.s === "chat")) return false;
-    if (askF === "todo") return its.some(i => isTodo(i.s));
-    if (askF === "waiting") return its.some(i => i.s === "waiting");
-    return its.some(i => i.s === "done" || i.s === "said");
+    return its.some(STEP[askF]);
   });
   /* 2026-10-26, Moosa: "a proper checklist so I know what is going on for what". Each ask is a card: a heading, a
      progress count, then a checklist: a box per item (✓ done, ! your turn, empty to do), its proof under it with links
      you can open. Your turn sorts first, then to do, then done; what you asked folds open under the heading. */
+  /* 2026-10-26: filter by step, not by ask: "Your steps" shows only what waits on you, "Claude's steps" only what's left
+     for Claude, and each card shows only the matching steps (the rest counted, not shown) */
   const RANK = a => { const its = itemsOf(a); return its.some(i => i.s === "waiting") ? 0 : its.some(i => isTodo(i.s)) ? 1 : 2 };
   const shown = list.slice(0, 80).sort((x, y) => RANK(x) - RANK(y) || String(y.at || "").localeCompare(String(x.at || "")));
   const box = s => s === "done" || s === "said" ? '<span class="cb on" title="Done">✓</span>' : s === "waiting" ? '<span class="cb wait" title="Your turn">!</span>' : s === "blocked" ? '<span class="cb blk" title="Blocked">×</span>' : '<span class="cb" title="To do"></span>';
@@ -258,13 +261,13 @@ function renderAsks(){
   const head = a => (a.id || "").startsWith("laptop-") && a.title ? a.title : ((a.text || "Chat").split(/\n|(?<=[.?!])\s/)[0]).slice(0, 96);
   $("#ask-list").innerHTML = shown.length ? shown.map(a => {
     const when = a.at ? new Date(a.at).toLocaleString([], {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
-    const all = itemsOf(a), its = all.filter(i => askF === "all" ? true : i.s !== "chat" && (i.t || i.p)), dn = all.filter(i => i.s === "done" || i.s === "said").length, real = all.filter(i => i.s !== "chat").length;
+    const all = itemsOf(a), its = all.filter(i => askF === "all" ? true : STEP[askF](i) && (i.t || i.p)), hidden = all.filter(i => i.s !== "chat").length - its.length, dn = all.filter(i => i.s === "done" || i.s === "said").length, real = all.filter(i => i.s !== "chat").length;
     const st = RANK(a) === 0 ? "wait" : RANK(a) === 1 ? "todo" : "done";
     return `<article class="ask ${st}"><header><h3>${esc(head(a))}</h3><span class="cnt">${real ? `${dn}/${real}` : ""}</span></header>
       <div class="meta"><span>${esc(when)}</span><span>${esc(a.where||"")}</span><span class="tag ${st}">${st === "wait" ? "Your turn" : st === "todo" ? "In progress" : "Done"}</span></div>
       ${real ? `<div class="prog" title="${dn} of ${real} done"><i style="width:${Math.round(dn / real * 100)}%"></i></div>` : ""}
       <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
-      <details class="said"><summary>What you asked</summary><p class="txt open">${esc(a.text||"")}</p></details></article>`;
+      ${askF !== "all" && hidden > 0 ? `<p class="hid">+ ${hidden} other step${hidden > 1 ? "s" : ""} (Everything shows them)</p>` : ""}<details class="said"><summary>What you asked</summary><p class="txt open">${esc(a.text||"")}</p></details></article>`;
   }).join("") + (list.length > shown.length ? `<div class="more">${list.length - shown.length} more: search to narrow them down.</div>` : "")
     : `<div class="empty">Nothing here with this filter.</div>`;
 }
