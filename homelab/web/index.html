@@ -98,6 +98,9 @@ pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);o
 .cb.on{background:color-mix(in srgb,var(--ok,#4ade80) 22%,transparent);border-color:var(--ok,#4ade80);color:var(--ok,#4ade80)}.cb.wait{border-color:var(--warn);color:var(--warn)}.cb.blk{border-color:var(--bad,#f87171);color:var(--bad,#f87171)}
 .ask details.said summary{cursor:pointer;font-size:12.5px;color:var(--muted)}.ask details.said .txt{margin:6px 0 0;-webkit-line-clamp:unset}
 .ask .hid{margin:0;font-size:12px;color:var(--muted)}
+.nextup{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;margin:10px 0 14px}.nextup .nx{padding:12px 14px}.nextup b{display:block;margin-bottom:8px}
+.stale{justify-self:start;width:fit-content;font:11.5px var(--mono);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:99px;padding:0 6px;margin-left:6px}
+#ask-sort{background:transparent;color:var(--ink);border:1px solid var(--rule);border-radius:99px;padding:6px 10px;font:inherit}
 .asklist{display:flex;flex-direction:column}
 .ask{padding:12px 14px;border-top:1px solid var(--rule);display:grid;gap:8px} .ask:first-child{border-top:0}
 .ask .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:12px var(--mono);color:var(--muted)}
@@ -143,7 +146,8 @@ section{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}@keyframes rise{from{op
     <h2>Docket <span class="n" id="asks-n"></span></h2>
     <div class="tiles" id="ask-tiles"></div>
     <div class="afil" role="group" aria-label="Show steps"><button data-af="waiting" aria-pressed="true">Your steps</button><button data-af="todo" aria-pressed="false">Claude's steps</button><button data-af="blocked" aria-pressed="false">Blocked</button><button data-af="done" aria-pressed="false">Done</button><button data-af="all" aria-pressed="false">Everything</button>
-      <input type="search" id="ask-q" placeholder="Search your asks…" aria-label="Search your asks"></div>
+      <input type="search" id="ask-q" placeholder="Search your asks…" aria-label="Search your asks"><select id="ask-sort" aria-label="Sort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="left">Most steps left</option></select></div>
+    <div class="nextup" id="ask-next"></div>
     <div class="panel asklist" id="ask-list"><div class="empty">Loading your asks…</div></div>
   </section>
   <section id="summary"><div class="tiles" id="tiles"></div></section>
@@ -255,7 +259,13 @@ function renderAsks(){
   /* 2026-10-26: filter by step, not by ask: "Your steps" shows only what waits on you, "Claude's steps" only what's left
      for Claude, and each card shows only the matching steps (the rest counted, not shown) */
   const RANK = a => { const its = itemsOf(a); return its.some(i => i.s === "waiting") ? 0 : its.some(i => isTodo(i.s)) ? 1 : 2 };
-  const shown = list.slice(0, 80).sort((x, y) => RANK(x) - RANK(y) || String(y.at || "").localeCompare(String(x.at || "")));
+  const srt = $("#ask-sort").value, left = a => itemsOf(a).filter(i => STEP.todo(i) || STEP.waiting(i)).length;
+  const shown = list.slice(0, 80).sort((x, y) => srt === "old" ? String(x.at || "").localeCompare(String(y.at || "")) : srt === "left" ? left(y) - left(x) : (RANK(x) - RANK(y) || String(y.at || "").localeCompare(String(x.at || ""))));
+  /* Next up (2026-10-26): your three oldest waiting steps and Claude's three newest open ones, above everything else */
+  { const all = A.asks.flatMap(a => itemsOf(a).map(i => ({ ...i, at: a.at, title: a.title || "" }))), age = i => (Date.now() - new Date(i.at || 0)) / 864e5;
+    const mine = all.filter(i => STEP.waiting(i) && i.t).sort((x, y) => String(x.at).localeCompare(String(y.at))).slice(0, 3), cl = all.filter(i => STEP.todo(i) && i.t).sort((x, y) => String(y.at).localeCompare(String(x.at))).slice(0, 3);
+    const row = (i, who) => `<li><span class="cb ${who === "you" ? "wait" : ""}">${who === "you" ? "!" : ""}</span><div><span class="t">${esc(i.t || "")}</span>${age(i) > 2 && who === "you" ? ` <span class="stale">waiting ${Math.floor(age(i))} days</span>` : ""}<span class="p">${esc((i.p || "").slice(0, 140))}</span></div></li>`;
+    $("#ask-next").innerHTML = mine.length + cl.length ? `<div class="panel nx"><b>Your next steps</b><ul class="chk">${mine.map(i => row(i, "you")).join("") || "<li>Nothing waits on you.</li>"}</ul></div><div class="panel nx"><b>Claude's next steps</b><ul class="chk">${cl.map(i => row(i, "claude")).join("") || "<li>Nothing open.</li>"}</ul></div>` : "" }
   const box = s => s === "done" || s === "said" ? '<span class="cb on" title="Done">✓</span>' : s === "waiting" ? '<span class="cb wait" title="Your turn">!</span>' : s === "blocked" ? '<span class="cb blk" title="Blocked">×</span>' : '<span class="cb" title="To do"></span>';
   const link = t => esc(t).replace(/(https?:\/\/[^\s<)"]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   const head = a => (a.id || "").startsWith("laptop-") && a.title ? a.title : ((a.text || "Chat").split(/\n|(?<=[.?!])\s/)[0]).slice(0, 96);
@@ -266,7 +276,7 @@ function renderAsks(){
     return `<article class="ask ${st}"><header><h3>${esc(head(a))}</h3><span class="cnt">${real ? `${dn}/${real}` : ""}</span></header>
       <div class="meta"><span>${esc(when)}</span><span>${esc(a.where||"")}</span><span class="tag ${st}">${st === "wait" ? "Your turn" : st === "todo" ? "In progress" : "Done"}</span></div>
       ${real ? `<div class="prog" title="${dn} of ${real} done"><i style="width:${Math.round(dn / real * 100)}%"></i></div>` : ""}
-      <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
+      <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.s === "waiting" && (Date.now() - new Date(a.at || 0)) / 864e5 > 2 ? ` <span class="stale">waiting ${Math.floor((Date.now() - new Date(a.at || 0)) / 864e5)} days</span>` : ""}${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
       ${askF !== "all" && hidden > 0 ? `<p class="hid">+ ${hidden} other step${hidden > 1 ? "s" : ""} (Everything shows them)</p>` : ""}<details class="said"><summary>What you asked</summary><p class="txt open">${esc(a.text||"")}</p></details></article>`;
   }).join("") + (list.length > shown.length ? `<div class="more">${list.length - shown.length} more: search to narrow them down.</div>` : "")
     : `<div class="empty">Nothing here with this filter.</div>`;
@@ -407,6 +417,7 @@ document.querySelectorAll("th.sort").forEach(th => {
 });
 $("#ctr-filter").addEventListener("input", renderContainers);
 $("#ask-q").addEventListener("input", renderAsks);
+$("#ask-sort").addEventListener("change", renderAsks);
 
 async function load(){
   try {
