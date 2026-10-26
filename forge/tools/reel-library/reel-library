@@ -55,17 +55,25 @@ def index():
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--index-only"]: index(); sys.exit()
-    for n, url in enumerate(links(sys.argv[1])):
+    nojudge = "--no-judge" in sys.argv; args = [a for a in sys.argv[1:] if not a.startswith("--")]   # --no-judge: fetch + transcribe only (grouping later, e.g. on the Kaggle GPU)
+    fails = 0
+    for n, url in enumerate(links(args[0])):
         code = url.rstrip("/").split("/")[-1]; d = LIB / code; info = d / "info.json"
         if info.exists(): continue
         if not list(d.glob("*.mp4")):
             r = subprocess.run([str(Path.home() / ".local/bin/reel"), url, str(d)], capture_output=True, text=True)
-            if r.returncode: print("skip", code, r.stdout.strip()[-120:]); time.sleep(20); continue
+            if r.returncode:
+                fails += 1; print("skip", code, r.stdout.strip()[-120:], flush=True)
+                if fails >= 3: print("Instagram is refusing: resting 30 min", flush=True); time.sleep(1800); fails = 0
+                else: time.sleep(20)
+                continue
+            fails = 0
             time.sleep(12)                                              # gentle on Instagram: one every ~15 s
         mp4 = next(d.glob("*.mp4")); cap = (d / f"{code}.txt").read_text() if (d / f"{code}.txt").exists() else ""
         try: text = transcribe(mp4)
         except Exception as e: text = ""; print("no transcript", code, e)
         (d / "transcript.txt").write_text(text)
-        j = judge(cap, text); info.write_text(json.dumps({"code": code, "url": url, "caption": cap, **j}, ensure_ascii=False))
-        print(f"{n+1}: {code} → {j.get('group')}{' ⚠ NSFW' if j.get('nsfw') else ''}")
+        j = {"group": "Unsorted", "summary": "", "nsfw": False, "why": ""} if nojudge else judge(cap, text); info.write_text(json.dumps({"code": code, "url": url, "caption": cap, **j}, ensure_ascii=False))
+        print(f"{n+1}: {code} → {j.get('group')}{' ⚠ NSFW' if j.get('nsfw') else ''}", flush=True)
+        if n % 50 == 0: index()
     index()

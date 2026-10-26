@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# jellyfin-intro-skipper (2026-10-26): puts the Intro Skipper plugin (FOSS, https://github.com/intro-skipper/intro-skipper)
+# back into Jellyfin (LXC 200 on Proxmox): the "Skip intro / Skip credits" buttons. Picks the newest release made for this
+# Jellyfin's major version, copies it into the plugins folder, restarts Jellyfin. Run it again after a Jellyfin upgrade.
+#   jellyfin-intro-skipper            (Proxmox root@192.168.10.13, container 200)
+set -euo pipefail
+PVE=${PVE:-root@192.168.10.13}; CT=${CT:-200}
+ver=$(ssh "$PVE" "pct exec $CT -- dpkg-query -W -f='\${Version}' jellyfin-server" | cut -d+ -f1); major=${ver%%.*}
+echo "Jellyfin $ver"
+url=$(curl -s "https://api.github.com/repos/intro-skipper/intro-skipper/releases?per_page=30" | python3 -c "
+import json,sys; m='$major'
+for r in json.load(sys.stdin):
+    if r['tag_name'].startswith(m+'.') and not r['prerelease'] and 'prerelease' not in r['tag_name']:
+        a=[x['browser_download_url'] for x in r['assets'] if x['name'].endswith('.zip')]
+        if a: print(a[0]); break")
+[ -n "$url" ] || { echo "no Intro Skipper release for Jellyfin $major yet"; exit 1; }
+name=$(basename "$url" .zip); tmp=$(mktemp -d); curl -sL "$url" -o "$tmp/p.zip"; echo "got $name"
+scp -q "$tmp/p.zip" "$PVE:/tmp/introskipper.zip" && ssh "$PVE" "pct push $CT /tmp/introskipper.zip /tmp/introskipper.zip"
+ssh "$PVE" "pct exec $CT -- sh -c 'd=/var/lib/jellyfin/plugins/IntroSkipper_${name#intro-skipper-v}; rm -rf /var/lib/jellyfin/plugins/IntroSkipper_*; mkdir -p \$d && cd \$d && (command -v unzip >/dev/null || apt-get install -y -qq unzip >/dev/null) && unzip -o -q /tmp/introskipper.zip && chown -R jellyfin:jellyfin /var/lib/jellyfin/plugins && systemctl restart jellyfin && echo installed into \$d'"
+rm -rf "$tmp"
+echo "Done. Jellyfin → Dashboard → Scheduled Tasks → 'Detect Intros and Credits' runs by itself (hours on a big library)."
