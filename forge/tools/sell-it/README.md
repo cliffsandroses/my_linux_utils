@@ -26,4 +26,5 @@
 | Philips 5.1 multimedia speakers | subwoofer, 5 satellites, wired remote | ₹4,000–15,000 (few; most are newer) | ₹2,500 | ₹1,800 |
 | Creative SBS A300 (2.1) | subwoofer + 2 satellites, original box | none listed | ₹1,200 | ₹900 |
 | Workout bench (scratched) | | ₹1,700–12,000 | ₹2,200 | ₹1,600 |
+| Metal double bed (steel frame) | frame only, or with mattress | to check on OLX | after the new bed arrives | |
 Write-ups: say it works (test each before listing), name the scratches, "pickup in Bangalore". Photos: the Immich set is good.

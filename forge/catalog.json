@@ -1,0 +1,132 @@
+[
+ {
+  "name": "automode",
+  "category": "Laptop",
+  "what": "Stream / dev / idle mode every 20 s: pauses OpenClaw and heavy jobs while you stream or work with Claude.",
+  "command": "automode",
+  "path": "forge/tools/automode",
+  "timer": "automode.timer"
+ },
+ {
+  "name": "reel",
+  "category": "Media",
+  "what": "Fetch an Instagram reel's video and caption without logging in.",
+  "command": "reel",
+  "path": "forge/tools/reel",
+  "args": "reel link"
+ },
+ {
+  "name": "reel-library",
+  "category": "Media",
+  "what": "Download, transcribe (FreeLLMAPI Whisper), group and NSFW-flag a list of reels; writes ~/reels-library/index.md.",
+  "command": "reel-library",
+  "path": "forge/tools/reel-library",
+  "args": "links.txt or saved_posts.json"
+ },
+ {
+  "name": "clip",
+  "category": "Media",
+  "what": "Stream clips: GPU transcription on Kaggle, captions, punch zooms, to the Clip studio.",
+  "command": "clip",
+  "path": "~/Projects/clipper",
+  "args": "auto | <vod>"
+ },
+ {
+  "name": "kaggle-run",
+  "category": "Media",
+  "what": "Run a Kaggle GPU job (textures, scenes, room images, transcribe) and fetch the results.",
+  "command": "kaggle-run",
+  "path": "~/Projects/clipper/kaggle",
+  "args": "job name"
+ },
+ {
+  "name": "yt-history-sync",
+  "category": "Media",
+  "what": "Your YouTube watch history → Soma → Media → Watched, every 6 h.",
+  "command": "yt-history-sync",
+  "path": "forge/tools/yt-history-sync",
+  "timer": "yt-history-sync.timer"
+ },
+ {
+  "name": "freellm",
+  "category": "AI",
+  "what": "Ask the homelab's FreeLLMAPI (free models, smart routing).",
+  "command": "freellm",
+  "path": "forge/tools/freellm",
+  "args": "question"
+ },
+ {
+  "name": "openclaw-watchdog",
+  "category": "AI",
+  "what": "Restarts OpenClaw when a linked chat channel goes unhealthy.",
+  "command": "openclaw-watchdog",
+  "path": "forge/tools/openclaw-watchdog",
+  "timer": "openclaw-watchdog.timer"
+ },
+ {
+  "name": "chiaki-launch",
+  "category": "Games",
+  "what": "PS5 Remote Play (chiaki-ng), paired.",
+  "command": "chiaki-launch",
+  "path": "forge/tools/chiaki-launch"
+ },
+ {
+  "name": "deals-fetch",
+  "category": "Home",
+  "what": "Deal Check's OLX search for your wishlist, every 3 h.",
+  "command": "~/Projects/deals/deals-fetch",
+  "path": "~/Projects/deals",
+  "timer": "deals-fetch.timer"
+ },
+ {
+  "name": "new-tool",
+  "category": "Forge",
+  "what": "Start a new tool from the template (forge README, step 1).",
+  "command": "~/Projects/smithy/forge/bin/new-tool",
+  "path": "forge/bin",
+  "args": "tool name"
+ },
+ {
+  "name": "desk-display",
+  "category": "Planned",
+  "what": "ESP32 + OLED on the desk: homelab state, approve button (plan).",
+  "command": "",
+  "path": "forge/tools/desk-display"
+ },
+ {
+  "name": "album-scan",
+  "category": "Planned",
+  "what": "Digitise the photo albums into Immich (plan).",
+  "command": "",
+  "path": "forge/tools/album-scan"
+ },
+ {
+  "name": "sell-it",
+  "category": "Planned",
+  "what": "Priced OLX listings for things you sell (plan + prices).",
+  "command": "",
+  "path": "forge/tools/sell-it"
+ },
+ {
+  "name": "tv-tidy",
+  "category": "Planned",
+  "what": "Debloat the LG OLED (settings, AdGuard rules) (plan).",
+  "command": "",
+  "path": "forge/tools/tv-tidy"
+ },
+ {
+  "name": "teams-transcribe",
+  "category": "Work",
+  "what": "Teams recording → transcript + summary, decisions, action items, from its videomanifest URL (or an mp4).",
+  "command": "teams-transcribe",
+  "path": "forge/tools/teams-transcribe",
+  "args": "videomanifest URL or file"
+ },
+ {
+  "name": "wardrobe",
+  "category": "Planned",
+  "what": "Everything in your wardrobe with photos, outfits, and ask it what to wear (plan).",
+  "command": "",
+  "path": "forge/tools/wardrobe"
+ }
+]

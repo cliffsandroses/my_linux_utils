@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# teams-transcribe (2026-10-26): a Teams meeting recording → transcript + summary, from just its SharePoint/OneDrive link.
+# How: open the recording's link in Brave (you're signed in there), press F12 → Network, type "videomanifest" in the filter,
+# play a second, right-click the request → Copy URL. That URL carries its own short-lived access token, so ffmpeg can fetch
+# the whole recording without your password or cookies. Audio goes to the homelab FreeLLMAPI Whisper in 10-minute pieces;
+# a free model writes the summary, decisions and action items.
+#   teams-transcribe "<videomanifest URL>" [name]        teams-transcribe recording.mp4 [name]
+set -euo pipefail
+src=${1:?videomanifest URL or a downloaded .mp4}; name=${2:-teams-$(date +%Y%m%d-%H%M)}; out=~/teams-recordings/$name; mkdir -p "$out"
+key=$(sed -n 's/^FREELLMAPI_API_KEY=//p' ~/.openclaw/.env | tr -d "\"'" | head -1)
+if [ -f "$src" ]; then ffmpeg -v error -y -i "$src" -vn -ac 1 -ar 16000 -b:a 48k "$out/audio.mp3"
+else
+  url=$(printf '%s' "$src" | sed -E 's/&?(altManifestMetadata|enableCdn)=[^&]*//g')     # the plain manifest gives the full-length stream
+  ffmpeg -v error -y -i "$url" -c copy "$out/$name.mp4" && ffmpeg -v error -y -i "$out/$name.mp4" -vn -ac 1 -ar 16000 -b:a 48k "$out/audio.mp3"
+fi
+ffmpeg -v error -y -i "$out/audio.mp3" -f segment -segment_time 600 -c copy "$out/part-%03d.mp3"
+: > "$out/transcript.txt"
+for p in "$out"/part-*.mp3; do
+  curl -sS -m 600 http://192.168.10.20:3001/v1/audio/transcriptions -H "Authorization: Bearer $key" -F model=whisper-large-v3 -F "file=@$p" | jq -r '.text // .error.message' >> "$out/transcript.txt"
+  echo >> "$out/transcript.txt"; echo "transcribed $(basename "$p")"
+done
+freellm "This is a Teams meeting transcript. Write: 1) a 5-line summary, 2) decisions made, 3) action items with owner and date if said, 4) open questions. Plain text." < "$out/transcript.txt" > "$out/summary.txt" || true
+echo "done: $out/transcript.txt and $out/summary.txt"
