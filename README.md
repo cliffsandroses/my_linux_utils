@@ -1,3 +1,9 @@
+# smithy
+
+Moosa's machines and the tools made for them (renamed from my_linux_utils on 2026-10-26, when forge moved in).
+Setup and rebuild scripts for the laptop and the homelab, and **forge/**: tools made when you want to use something
+(how a tool gets made, the template, and every tool: `forge/README.md`).
+
 Two setup scripts, both kept:
 
 - `Linux_SetupScript.sh` — the current one (September 2026): flags, helpers, drivers, hardening.
