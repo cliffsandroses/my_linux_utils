@@ -1,0 +1,7 @@
+#!/bin/sh
+# chiaki-ng with its messages kept in ~/.local/state/chiaki/chiaki.log, and the GPU off for the
+# built-in browser (PSN Login): every crash so far (21-24 Oct) was inside QtWebEngine.
+mkdir -p "$HOME/.local/state/chiaki"
+export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:---disable-gpu}"
+echo "=== $(date -Is) start" >> "$HOME/.local/state/chiaki/chiaki.log"
+exec /usr/bin/chiaki "$@" 2>> "$HOME/.local/state/chiaki/chiaki.log"

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# OpenClaw watchdog: restart the gateway when a *linked* chat channel is unhealthy.
+# One DNS blip leaves a channel in terminal-disconnect and the gateway's own health monitor
+# never restarts it (openclaw/openclaw#146999): WhatsApp sat dead for two days (2026-09-25).
+# Run every 5 minutes by openclaw-watchdog.timer. Logs to the journal: journalctl --user -t openclaw-watchdog
+#
+# - a linked channel unhealthy  -> restart the gateway, at most once per 30 minutes
+# - a channel logged out        -> tell you to relink (openclaw channels login), never restart-loop
+# - gateway down or starting    -> nothing: systemd restarts crashes, laptop-health reports the rest
+set -uo pipefail
+export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
+UNIT="${OPENCLAW_UNIT:-openclaw-gateway.service}"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/openclaw-watchdog"
+COOLDOWN=$((30 * 60)) RELINK_NAG=$((6 * 3600))
+mkdir -p "$STATE"
+say() { logger -t openclaw-watchdog "$*"; command -v notify-send >/dev/null && notify-send -a OpenClaw "OpenClaw" "$*" 2>/dev/null; echo "$*"; }
+
+systemctl --user is-active --quiet "$UNIT" || exit 0
+js=$(timeout 40 openclaw channels status --json 2>/dev/null) || exit 0
+verdict=$(printf '%s' "$js" | python3 -c '
+import json, sys
+BAD = {"terminal-disconnect", "ingress-unavailable", "blocked", "not-running", "disconnected", "stale-socket", "stuck"}
+try: d = json.load(sys.stdin)
+except Exception: print("unknown|"); sys.exit()
+bad, relink = [], []
+for chan, accounts in (d.get("channelAccounts") or {}).items():
+    for a in accounts or []:
+        if a.get("enabled") is False or a.get("configured") is False: continue
+        acc = a.get("accountId")
+        name = chan if acc in (None, "default") else chan + "/" + str(acc)
+        if a.get("linked") is False: relink.append(name)
+        elif a.get("healthState") in BAD: bad.append(name + " (" + str(a.get("healthState")) + ")")
+print(("restart|" + ", ".join(bad)) if bad else ("relink|" + ", ".join(relink)) if relink else "ok|")')
+
+now=$(date +%s)
+case "${verdict%%|*}" in
+  restart)
+    last=$(cat "$STATE/last-restart" 2>/dev/null || echo 0)
+    if [ $((now - last)) -lt $COOLDOWN ]; then
+      logger -t openclaw-watchdog "unhealthy: ${verdict#*|}; restarted $(( (now - last) / 60 )) min ago, waiting for the cooldown"
+    else
+      echo "$now" > "$STATE/last-restart"
+      systemctl --user restart "$UNIT" && say "restarted the gateway: ${verdict#*|}"
+    fi ;;
+  relink)
+    last=$(cat "$STATE/last-relink-nag" 2>/dev/null || echo 0)
+    if [ $((now - last)) -ge $RELINK_NAG ]; then
+      echo "$now" > "$STATE/last-relink-nag"
+      say "logged out, relink with: openclaw channels login (${verdict#*|})"
+    fi ;;
+esac
+exit 0

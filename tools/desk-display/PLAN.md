@@ -68,3 +68,37 @@ The approve button doesn't approve by itself: it asks Soma to send the usual pho
 ## Later
 
 A BME280 (temperature, humidity, pressure; I²C, same two pins) makes it a room sensor, shown in Soma too.
+
+## Everything else the ESP32 can do (complete plan, 2026-10-26)
+
+The board stays on the desk and keeps the display job; these add parts (cheap, from Probots or SP Road) or reuse
+the same board. Ordered by how useful they are to you.
+
+| # | Project | Extra parts (≈₹) | What it gives you |
+|---|---|---|---|
+| 1 | **Desk display** (above) | jumpers ₹70 | homelab, downloads, playing, clips at a glance |
+| 2 | **Approve button** | push button ₹10 | say yes to Soma requests from the desk (S25 still confirms) |
+| 3 | **Room sensor** | BME280 ₹350 | temperature, humidity, pressure on the OLED and in Soma; "open the window" nudge |
+| 4 | **Presence at the desk** | LD2410 mmWave ₹400 | automode knows you're at the desk even when the laptop is idle; screen sleeps when you leave |
+| 5 | **Stream light** | WS2812 strip / ring ₹250 | glows red when you're live (automode stream mode), cyan when idle, amber when something needs you |
+| 6 | **Monster can shelf lights** | WS2812 strip ₹250 | lights the can display (below) and follows the Prism hue |
+| 7 | **Wake the PCs** | none | Wake-on-LAN for the laptop or homelab from the button or from Soma |
+| 8 | **IR remote** | IR LED + receiver ₹60 | learn the TV/AC remotes; Soma buttons for power, volume, AC temperature |
+| 9 | **Door / drawer sensor** | reed switch ₹40 | a notification when the door opens while you're streaming |
+| 10 | **Plant or bottle reminder** | soil sensor ₹80 / load cell ₹250 | drink water / water the plant nudges |
+| 11 | **Bluetooth tracker** | none | notices your phone or watch nearby (ESPHome bluetooth_proxy) to set "home/away" |
+| 12 | **Macro pad** | 4 keys ₹100 | one-tap: stream mode, clip that, mute, lights |
+
+Software for all of it stays ESPHome first (each is a few lines of YAML), with Soma as the screen and the control panel:
+a Gadgets tile under Homelab listing each sensor and switch.
+
+Order: 1 → 2 → 3 → 5 → 4. Parts for 1–5 together come to about ₹1,100.
+
+## Getting the wires (2026-10-26)
+
+Quick-commerce apps (Blinkit, Zepto, Instamart) don't stock breadboard jumpers. Fastest in Bangalore:
+- **Probots** (Bangalore store, walk-in pickup, or Dunzo/Porter pickup after you confirm with them):
+  [male-to-male 20 cm, 40 pcs](https://probots.co.in/male-to-male-jumper-wires-40-pcs-20-cm.html) (what you need: both boards sit in the breadboard, ≈₹69–89),
+  [male-to-female 20 cm](https://probots.co.in/male-to-female-jumper-wires-40-pcs-20cm.html) (for sensors later),
+  [140-piece breadboard kit](https://probots.co.in/breadboard-jumper-kit-140pcs-solderless-cable-wire-for-prototypi.html).
+- **SP Road** (Bangalore's electronics market): any shop has jumper sets, BME280s and WS2812 strips the same day.
