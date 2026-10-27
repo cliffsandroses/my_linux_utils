@@ -94,6 +94,7 @@ pre{margin:0;font:12px/1.55 var(--mono);white-space:pre-wrap;color:var(--ink2);o
 .ask.wait{box-shadow:inset 3px 0 0 var(--warn)}.ask.todo{box-shadow:inset 3px 0 0 var(--accent)}.ask.done{opacity:.78}
 .chk{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:8px}.chk li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start}
 .chk li>div{display:grid;gap:2px}.chk .t{color:var(--ink)}.chk li.ok .t{color:var(--muted)}.ask .chk li .p{grid-column:auto;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}.chk .p a{color:var(--accent)}
+.chk ol.steps{margin:4px 0 2px;padding-left:20px;display:grid;gap:3px;font-size:13px;color:var(--ink-2,#C3CBE2)}.chk .chkby{color:var(--accent)}
 .cb{width:18px;height:18px;border-radius:5px;border:1.5px solid color-mix(in srgb,var(--ink) 40%,transparent);display:grid;place-items:center;font:700 12px/1 var(--mono);margin-top:1px}
 .cb.on{background:color-mix(in srgb,var(--ok,#4ade80) 22%,transparent);border-color:var(--ok,#4ade80);color:var(--ok,#4ade80)}.cb.wait{border-color:var(--warn);color:var(--warn)}.cb.blk{border-color:var(--bad,#f87171);color:var(--bad,#f87171)}
 .ask details.said summary{cursor:pointer;font-size:12.5px;color:var(--muted)}.ask details.said .txt{margin:6px 0 0;-webkit-line-clamp:unset}
@@ -247,8 +248,11 @@ function renderAsks(){
   { const every = A.asks.flatMap(itemsOf); document.querySelectorAll("[data-af]").forEach(b => { const k = b.dataset.af, n2 = k === "all" ? A.asks.length : every.filter(STEP[k]).length;
       b.dataset.n = n2; b.textContent = b.textContent.replace(/ \d+$/, "") + " " + n2 }) }
   const q = $("#ask-q").value.trim().toLowerCase();
+  /* 2026-10-27, Moosa: "Make it so that docket only handles the listing things with steps and verifications": only asks
+     with real to-dos are listed (plain chat turns are left out); each to-do shows its steps and how it is checked */
   const list = A.asks.filter(a => {
     const its = itemsOf(a);
+    if (!its.some(i => i.t && i.s !== "chat")) return false;
     if (q && !((a.text||"") + " " + its.map(i => (i.t||"") + " " + (i.p||"")).join(" ") + " " + (a.title||"")).toLowerCase().includes(q)) return false;
     if (askF === "all") return true;
     return its.some(STEP[askF]);
@@ -276,7 +280,7 @@ function renderAsks(){
     return `<article class="ask ${st}"><header><h3>${esc(head(a))}</h3><span class="cnt">${real ? `${dn}/${real}` : ""}</span></header>
       <div class="meta"><span>${esc(when)}</span><span>${esc(a.where||"")}</span><span class="tag ${st}">${st === "wait" ? "Your turn" : st === "todo" ? "In progress" : "Done"}</span></div>
       ${real ? `<div class="prog" title="${dn} of ${real} done"><i style="width:${Math.round(dn / real * 100)}%"></i></div>` : ""}
-      <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.s === "waiting" && (Date.now() - new Date(a.at || 0)) / 864e5 > 2 ? ` <span class="stale">waiting ${Math.floor((Date.now() - new Date(a.at || 0)) / 864e5)} days</span>` : ""}${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
+      <ul class="chk">${its.map(i => `<li class="${i.s === "done" || i.s === "said" ? "ok" : ""}">${box(i.s)}<div><span class="t">${esc(i.t || "The ask above")}</span>${i.s === "waiting" && (Date.now() - new Date(a.at || 0)) / 864e5 > 2 ? ` <span class="stale">waiting ${Math.floor((Date.now() - new Date(a.at || 0)) / 864e5)} days</span>` : ""}${i.steps && i.steps.length && !(i.s === "done" || i.s === "said") ? `<ol class="steps">${i.steps.map(x => `<li>${link(x)}</li>`).join("")}</ol>` : ""}${i.check ? `<span class="p chkby">Check: ${link(i.check)}</span>` : ""}${i.p ? `<span class="p">${link(i.p)}</span>` : ""}</div></li>`).join("")}</ul>
       ${askF !== "all" && hidden > 0 ? `<p class="hid">+ ${hidden} other step${hidden > 1 ? "s" : ""} (Everything shows them)</p>` : ""}<details class="said"><summary>What you asked</summary><p class="txt open">${esc(a.text||"")}</p></details></article>`;
   }).join("") + (list.length > shown.length ? `<div class="more">${list.length - shown.length} more: search to narrow them down.</div>` : "")
     : `<div class="empty">Nothing here with this filter.</div>`;

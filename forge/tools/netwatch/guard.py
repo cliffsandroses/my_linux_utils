@@ -155,9 +155,12 @@ def _run(s, day, budget, topic, notify):
     try: g = json.load(open(STATE))
     except (OSError, ValueError): g = {}
     now = time.time(); dev = g.setdefault("dev", {})
+    acts = answers(topic, g)
+    for a in acts:   # the master switch first (Soma → Internet: "Guard on/off")
+        if a.lower() in ("guard on", "guard off"): c["on"] = a.lower() == "guard on"; save_conf(c)
     if not c["on"]:
-        apply(c, set(), False, set()); qbit(False); g["summary"] = "guard off"; _save(g); return "guard off"
-    for a in answers(topic, g):
+        apply(c, set(), False, set()); qbit(False); g["summary"] = {"off": True}; _save(g); return "guard off"
+    for a in acts:
         w = a.split(); w[0] = w[0].lower() if w else ""
         if a.lower() == "lift": g["lifted"] = day
         elif w[0] == "tv" and len(w) == 2: w = (["no", "192.168.10.50"] if w[1] == "no" else ["ok", "192.168.10.50", w[1]])
