@@ -108,6 +108,7 @@ def main(a):
     if a[0] == "check": return 0 if check("--notify" in a) else 1
     if a[0] == "tv": print(lgtv.state(TV)); return 0
     if a[0] == "pair-tv":
+        import time; lgtv.wake(); time.sleep(8)          # wake it first: an asleep TV answers "Try Again Later"
         print("Look at the TV and choose Allow…")
         try: t = lgtv.TV(TV, 60); ok = t.register(prompt=True)
         except OSError as e: print(f"The TV didn't answer ({e}): is it on?"); return 1

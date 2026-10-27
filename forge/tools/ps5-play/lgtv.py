@@ -31,10 +31,13 @@ class TV:
             b = b""
             while len(b) < k: b += self.s.recv(k - len(b))
             return b
-        a, l = n(2); l &= 0x7F
-        if l == 126: l = struct.unpack(">H", n(2))[0]
-        elif l == 127: l = struct.unpack(">Q", n(8))[0]
-        return json.loads(n(l))
+        while True:
+            a, l = n(2); op = a & 0x0F; l &= 0x7F
+            if l == 126: l = struct.unpack(">H", n(2))[0]
+            elif l == 127: l = struct.unpack(">Q", n(8))[0]
+            b = n(l)
+            if op == 8: raise OSError("the TV closed the connection: " + b[2:].decode(errors="replace"))   # e.g. asleep: "Try Again Later"
+            if op == 1: return json.loads(b)          # text; pings and other frames are skipped
 
     def register(self, prompt=False):
         msg = {"type": "register", "id": "reg", "payload": {"pairingType": "PROMPT", "manifest": MANIFEST}}
@@ -69,6 +72,12 @@ def state(host):
         return "on:" + app if app else "on"
     except (OSError, ValueError, KeyError): return "off"
     finally: tv.s.close()
+
+
+def wake(mac="ac:b6:87:35:ad:4a"):
+    """Wake-on-LAN: the TV turns on if 'Turn on via Wi-Fi/LAN' is on in its settings."""
+    m = bytes.fromhex(mac.replace(":", "")); s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    for port in (9, 7): s.sendto(b"\xff" * 6 + m * 16, ("255.255.255.255", port))
 
 
 def off(host):

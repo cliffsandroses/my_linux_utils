@@ -37,9 +37,17 @@ if ($have -eq $want) { Write-Host "Already the latest ($want)." -ForegroundColor
   $tray = Get-CimInstance Win32_Process -Filter "Name='SyncTrayzor.exe'" | Select-Object -First 1
   if ($tray) { Write-Host "SyncTrayzor found: closing it for the swap"; Stop-Process -Id $tray.ProcessId -Force; Start-Sleep 2 }
   Get-Process syncthing -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 1
-  Copy-Item $exe "$exe.old" -Force
-  Copy-Item "$env:TEMP\$name\syncthing.exe" $exe -Force
-  if ($tray) { Start-Process $tray.ExecutablePath } else { Start-Process $exe -ArgumentList $args0 -WindowStyle Hidden }
+  # the zip holds a folder of the same name: find syncthing.exe wherever it unpacked
+  $new = Get-ChildItem "$env:TEMP\$name" -Recurse -Filter syncthing.exe | Select-Object -First 1
+  try {
+    if (-not $new) { throw "syncthing.exe isn't in the download" }
+    Copy-Item $exe "$exe.old" -Force
+    Copy-Item $new.FullName $exe -Force
+  } catch { Write-Host "Couldn't swap it: $_  (the old version stays)" -ForegroundColor Red }
+  finally {   # whatever happened, SyncTrayzor (or Syncthing) is started again
+    $trayExe = if ($tray) { $tray.ExecutablePath } else { @("$env:ProgramFiles\SyncTrayzor\SyncTrayzor.exe", "$env:LOCALAPPDATA\SyncTrayzor\SyncTrayzor.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+    if ($trayExe) { Start-Process $trayExe } else { Start-Process $exe -ArgumentList $args0 -WindowStyle Hidden }
+  }
   Start-Sleep 5
   Write-Host "Now: $((& $exe --version) -split ' ' | Select-Object -Index 1)" -ForegroundColor Green
 }
