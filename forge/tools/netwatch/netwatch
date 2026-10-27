@@ -7,7 +7,7 @@
   netwatch report    the last 24 hours of line quality, for the ISP
   netwatch install   start the two timers (once)
 
-Settings: ~/.config/netwatch/conf (CAP_GB, CYCLE_DAY, START_USED_GB). Phone alerts go to the homelab's ntfy topic (the
+Settings: ~/.config/netwatch/conf (CAP_GB, CYCLE_DAY, START_USED_GB). The data guard (guard.py) runs with every sample. Phone alerts go to the homelab's ntfy topic (the
 one Watchtower uses) at 80/90/95/100 % of the cap and when the line is bad 3 checks running.
 """
 import datetime as dt, json, os, re, subprocess, sys, time, urllib.request
@@ -21,10 +21,14 @@ except OSError: pass
 CAP, DAY = float(CONF["CAP_GB"]) * 1e9, int(CONF["CYCLE_DAY"])
 
 
-def ntfy(title, body, prio="high"):
+def topic():
     """The homelab's ntfy topic, read from Watchtower's compose file (never printed)."""
+    return re.search(r"ntfy://([^/\s]+)/([\w-]+)", open(os.path.expanduser("~/homelab/watchtower/docker-compose.yml")).read())
+
+
+def ntfy(title, body, prio="high"):
     try:
-        m = re.search(r"ntfy://([^/\s]+)/([\w-]+)", open(os.path.expanduser("~/homelab/watchtower/docker-compose.yml")).read())
+        m = topic()
         urllib.request.urlopen(urllib.request.Request(f"https://{m.group(1)}/{m.group(2)}", body.encode(),
                                {"Title": title, "Priority": prio, "Tags": "satellite"}), timeout=15)
     except Exception as e: print("ntfy failed:", type(e).__name__, file=sys.stderr)
@@ -79,7 +83,10 @@ def sample():
                  f"Today so far: {s['days'][k]/1e9:.1f} GB.", "urgent" if pct >= 95 else "high")
     # the day's budget: what's left this cycle shared over the days left; one alert a day when today runs past it
     nxt = (dt.datetime.strptime(cyc, "%Y-%m-%d") + dt.timedelta(days=32)).replace(day=min(DAY, 28))
-    days_left = max(1, (nxt - now).days + 1); budget = max(0.0, CAP - s["used"]) / days_left
+    days_left = max(1, (nxt - now).days + 1)
+    if s.get("share_day") != k:   # today's share is fixed at the day's first sample: what was left, over the days left
+        s["share_day"], s["share"] = k, max(0.0, CAP - (s["used"] - s["days"][k])) / days_left
+    budget = s["share"]
     if s["days"][k] > budget and s.get("budget_alert") != k:
         s["budget_alert"] = k
         ntfy("Internet: over today's share", f"{s['days'][k]/1e9:.1f} GB used today; the {max(0, CAP - s['used'])/1e9:.0f} GB left "
@@ -89,6 +96,12 @@ def sample():
           f"{' [down from qBittorrent: router counter full]' if s.get('rx_stuck') else ''} | today {s['days'][k]/1e9:.2f} GB"
           f" of {budget/1e9:.1f} GB/day | month {s['used']/1e9:.1f}/{CAP/1e9:.0f} GB, {days_left} days left")
     json.dump(s, open(STATE + ".tmp", "w")); os.replace(STATE + ".tmp", STATE)
+    try:
+        import guard; print(guard.run(s, k, budget, topic().group(2), ntfy))
+    except Exception as e: print("guard failed:", type(e).__name__, e, file=sys.stderr)
+    try:
+        import routerwatch; r = routerwatch.run(ntfy); r and print(r)
+    except Exception as e: print("routerwatch failed:", type(e).__name__, e, file=sys.stderr)
 
 
 def ping(h):

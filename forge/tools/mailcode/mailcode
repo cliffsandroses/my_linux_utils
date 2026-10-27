@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""mailcode: fetch a login verification code from Moosa's mail, so a sign-in can finish without him copying it
+(Moosa, 2026-10-27: "Make a service that can login to things like your verification code from my mail").
+
+  mailcode                  the newest code from the last 15 minutes (and who sent it)
+  mailcode --wait 180       wait up to 180 s for a new one (start it just before asking a site to send the code)
+  mailcode --from github    only mail whose sender or subject contains "github"
+
+The mailbox is read over IMAP, read-only (nothing is marked, moved or deleted). Settings, made by Moosa once, mode 600:
+~/.config/mailcode/account with three lines:  host=imap.gmail.com  user=<address>  password=<app password>
+Gmail: an app password from https://myaccount.google.com/apppasswords (needs 2-step verification).
+Proton Mail only offers IMAP through Proton Mail Bridge on paid plans, so a Proton address forwards its code mail to
+the Gmail one instead. The password is never printed.
+"""
+import argparse, datetime as dt, email, email.header, email.utils, imaplib, os, re, sys, time
+
+ACC = os.path.expanduser("~/.config/mailcode/account")
+CODE = re.compile(r"(?<![\w#&/=.-])(\d{3} \d{3}|\d{4,8}|[A-Z0-9]{3,4}-[A-Z0-9]{3,4})(?![\w-])")
+NEAR = re.compile(r"code|verif|one[- ]time|otp|passcode|sign[- ]?in|log[- ]?in|confirm|security|2fa|token", re.I)
+
+
+def account():
+    try: a = dict(l.strip().split("=", 1) for l in open(ACC) if "=" in l)
+    except OSError: sys.exit(f"No {ACC} yet: see `mailcode --help`.")
+    if os.stat(ACC).st_mode & 0o077: os.chmod(ACC, 0o600)
+    return a
+
+
+def text(m):
+    parts = [p for p in m.walk() if p.get_content_type() in ("text/plain", "text/html")] or [m]
+    out = []
+    for p in parts:
+        b = p.get_payload(decode=True) or b""
+        t = b.decode(p.get_content_charset() or "utf-8", "replace")
+        if p.get_content_type() == "text/html": t = re.sub(r"<style.*?</style>|<[^>]+>", " ", t, flags=re.S)
+        out.append(re.sub(r"&nbsp;|\s+", " ", t))
+    return " ".join(out)
+
+
+def find(m):
+    subj = str(email.header.make_header(email.header.decode_header(m.get("Subject", ""))))
+    body = text(m)
+    for where in (subj, body):
+        for c in CODE.finditer(where):
+            ctx = where[max(0, c.start() - 120):c.end() + 60]
+            if NEAR.search(ctx) and not re.fullmatch(r"(19|20)\d\d", c.group(1)): return c.group(1).replace(" ", ""), subj
+    return None, subj
+
+
+def newest(a, since, who):
+    im = imaplib.IMAP4_SSL(a.get("host", "imap.gmail.com")); im.login(a["user"], a["password"])
+    try:
+        im.select("INBOX", readonly=True)
+        _, ids = im.search(None, f'(SINCE "{since.strftime("%d-%b-%Y")}")')
+        for i in reversed(ids[0].split()[-40:]):
+            _, d = im.fetch(i, "(BODY.PEEK[])"); m = email.message_from_bytes(d[0][1])
+            when = email.utils.parsedate_to_datetime(m.get("Date")).astimezone()
+            if when < since: continue
+            frm = m.get("From", "")
+            code, subj = find(m)
+            if code and (not who or who in (frm + subj).lower()): return code, frm, subj, when
+    finally: im.logout()
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--wait", type=int, default=0); ap.add_argument("--from", dest="who", default="")
+    o = ap.parse_args(); a = account(); now = dt.datetime.now().astimezone()
+    since = now - dt.timedelta(seconds=20) if o.wait else now - dt.timedelta(minutes=15)
+    end = time.time() + o.wait
+    while True:
+        r = newest(a, since, o.who.lower())
+        if r: print(f"{r[0]}    from {r[1]} · {r[2][:60]} · {r[3]:%H:%M:%S}"); return
+        if time.time() >= end: sys.exit("No code mail found.")
+        time.sleep(8)
+
+
+if __name__ == "__main__": main()
