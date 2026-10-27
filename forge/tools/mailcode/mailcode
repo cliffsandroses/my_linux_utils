@@ -5,6 +5,7 @@
   mailcode                  the newest code from the last 15 minutes (and who sent it)
   mailcode --wait 180       wait up to 180 s for a new one (start it just before asking a site to send the code)
   mailcode --from github    only mail whose sender or subject contains "github"
+  mailcode setup            asks for the address and app password once (typed, never shown) and saves them
 
 The mailbox is read over IMAP, read-only (nothing is marked, moved or deleted). Settings, made by Moosa once, mode 600:
 ~/.config/mailcode/account with three lines:  host=imap.gmail.com  user=<address>  password=<app password>
@@ -63,7 +64,17 @@ def newest(a, since, who):
     return None
 
 
+def setup():
+    import getpass
+    u = input("Gmail address: ").strip(); p = getpass.getpass("App password (16 letters, hidden): ").replace(" ", "")
+    os.makedirs(os.path.dirname(ACC), exist_ok=True)
+    with open(os.open(ACC, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f: f.write(f"host=imap.gmail.com\nuser={u}\npassword={p}\n")
+    try: newest(account(), dt.datetime.now().astimezone(), ""); print("Saved and checked: the mailbox opens.")
+    except imaplib.IMAP4.error: print("Saved, but Gmail refused it: run `mailcode setup` again with a new app password.")
+
+
 def main():
+    if sys.argv[1:2] == ["setup"]: return setup()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--wait", type=int, default=0); ap.add_argument("--from", dest="who", default="")
     o = ap.parse_args(); a = account(); now = dt.datetime.now().astimezone()
