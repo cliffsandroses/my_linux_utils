@@ -6,6 +6,9 @@
   mailcode --wait 180       wait up to 180 s for a new one (start it just before asking a site to send the code)
   mailcode --from github    only mail whose sender or subject contains "github"
   mailcode setup            asks for the address and app password once (typed, never shown) and saves them
+  mailcode --phone          read the code from the phone's notifications instead (Proton Mail, SMS, any app), through
+                            KDE Connect on the laptop: works with Proton's free plan, when the code is in the subject or
+                            the notification's preview
 
 The mailbox is read over IMAP, read-only (nothing is marked, moved or deleted). Settings, made by Moosa once, mode 600:
 ~/.config/mailcode/account with three lines:  host=imap.gmail.com  user=<address>  password=<app password>
@@ -73,8 +76,33 @@ def setup():
     except imaplib.IMAP4.error: print("Saved, but Gmail refused it: run `mailcode setup` again with a new app password.")
 
 
+def phone(who):
+    """The newest code in the phone's notifications, mirrored to the laptop by KDE Connect."""
+    import subprocess
+    sh = ("D=/modules/kdeconnect/devices/$(kdeconnect-cli -a --id-only | head -1)/notifications; I=org.kde.kdeconnect.device.notifications; "
+          "for n in $(qdbus6 org.kde.kdeconnect $D $I.activeNotifications); do for k in appName title text; do "
+          "printf '%s\\t' \"$(qdbus6 org.kde.kdeconnect $D/$n $I.notification.$k | tr '\\t\\n' '  ')\"; done; echo; done")
+    cmd = ["sh", "-c", sh] if os.path.exists("/usr/bin/kdeconnect-cli") else ["ssh", "-o", "ConnectTimeout=5", "moosa@192.168.10.30", sh]
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout
+    for row in reversed(out.splitlines()):
+        app, title, body = (row.split("\t") + ["", "", ""])[:3]
+        m = email.message_from_string(f"Subject: {title}\n\n{body}")
+        code, _ = find(m)
+        if code and (not who or who in (app + title + body).lower()): return code, app, title, dt.datetime.now().astimezone()
+    return None
+
+
 def main():
     if sys.argv[1:2] == ["setup"]: return setup()
+    if "--phone" in sys.argv:
+        sys.argv.remove("--phone")
+        who = (sys.argv[sys.argv.index("--from") + 1] if "--from" in sys.argv else "").lower()
+        wait = int(sys.argv[sys.argv.index("--wait") + 1]) if "--wait" in sys.argv else 0; end = time.time() + wait
+        while True:
+            r = phone(who)
+            if r: print(f"{r[0]}    from {r[1]} · {r[2][:60]}"); return
+            if time.time() >= end: sys.exit("No code in the phone's notifications.")
+            time.sleep(5)
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--wait", type=int, default=0); ap.add_argument("--from", dest="who", default="")
     o = ap.parse_args(); a = account(); now = dt.datetime.now().astimezone()

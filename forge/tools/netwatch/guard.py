@@ -1,32 +1,54 @@
 """The data guard, run by `netwatch sample` every minute, so it works with nobody watching (Moosa, 2026-10-27: "Make a
-stop when the data goes over the daily limit … sessions allowed on the tv approved only by me … All this automated").
+stop when the data goes over the daily limit … sessions allowed on the tv approved only by me … All this automated",
+then: "what about other people in my house??? Keep a constant monitor of each session. I want a dashboard with on off for
+each device").
 
-Over today's share: only the devices in `allow` keep the internet (AdGuard answers no names for the rest) and
-qBittorrent is paused; both lift at midnight, or earlier when Moosa taps "Lift for today".
-The TV: its internet is off until Moosa approves a session from the phone alert (1 or 3 hours). A session that runs
-past its time or past `tv_normal_gb` asks again; with no answer at the end of its time, the TV goes off again.
-Its local apps (Jellyfin by address, the homelab's names) keep working.
+Every device in the house has a mode (Soma → Homelab → Internet switches it):
+  on        always online
+  guarded   online until the day goes over its share (the default for everyone else in the house and new devices)
+  ask       online only for sessions Moosa approves from the phone alert (the TV); asks again near the end and when a
+            session runs past its normal length
+  off       never online
+Over today's share, downloads (qBittorrent) pause too, until midnight or "Lift for today".
+Sessions: a device is in a session while it looks names up (AdGuard's query log); a gap of 10 minutes ends it. Each minute
+the counts are kept; finished sessions go to ~/.local/share/netwatch/sessions.jsonl. AdGuard sees names, not bytes, so a
+session's data is the whole house's while it ran (the router reports no per-device bytes).
+Blocking is AdGuard refusing names for that device; local names (the homelab's apps) keep working.
 
-Settings: ~/.config/netwatch/guard.json (made on first run). Answers come back through ntfy: the alert buttons post
-to "<topic>-guard", which this polls. The AdGuard login is read from its file at run time, never printed.
+Settings: ~/.config/netwatch/guard.json (made on first run). Answers come from the phone alert buttons (ntfy topic
+"<topic>-guard") and from Soma (actions.jsonl). The AdGuard login is read from its file at run time, never printed.
 """
-import base64, json, os, re, subprocess, time, urllib.request
+import base64, calendar, fcntl, json, os, re, statistics, subprocess, time, urllib.request
 
 CONF = os.path.expanduser("~/.config/netwatch/guard.json")
-STATE = os.path.expanduser("~/.local/share/netwatch/guard.json")
+D = os.path.expanduser("~/.local/share/netwatch")
+STATE, SESS, ACTS, LOCK = f"{D}/guard.json", f"{D}/sessions.jsonl", f"{D}/actions.jsonl", f"{D}/guard.lock"
 AG = "http://127.0.0.1:8080"
-DEFAULT = {"on": True, "net": "192.168.10.0/24",
-           "allow": {"192.168.10.16": "phone", "192.168.10.87": "work PC", "192.168.10.20": "homelab",
-                     "192.168.10.30": "laptop", "192.168.10.13": "Proxmox", "192.168.10.10": "VM"},
-           "tv": "192.168.10.50", "tv_approval": "always",     # "always", or "over" (only when over today's share)
-           "tv_normal_gb": 5, "local": ["duckdns.org", "lan", "local", "home.arpa", "ts.net", "in-addr.arpa"]}
+MODES = ("on", "guarded", "ask", "off")
+DEFAULT = {"on": True, "net": "192.168.10.0/24", "default_mode": "guarded", "normal_gb": 5,
+           "devices": {"192.168.10.16": {"name": "Moosa's phone", "mode": "on"}, "192.168.10.87": {"name": "Work PC", "mode": "on"},
+                       "192.168.10.30": {"name": "Laptop", "mode": "on"}, "192.168.10.20": {"name": "Homelab", "mode": "on"},
+                       "192.168.10.13": {"name": "Proxmox", "mode": "on"}, "192.168.10.10": {"name": "VM (Proxmox)", "mode": "on"},
+                       "192.168.10.1": {"name": "Router", "mode": "on"}, "192.168.10.50": {"name": "LG TV", "mode": "ask"},
+                       "192.168.10.119": {"name": "PS5", "mode": "guarded"}},
+           "local": ["duckdns.org", "lan", "local", "home.arpa", "ts.net", "in-addr.arpa"]}
 START, END = "! dataguard start", "! dataguard end"
 
 
 def conf():
     if not os.path.exists(CONF):
         os.makedirs(os.path.dirname(CONF), exist_ok=True); json.dump(DEFAULT, open(CONF, "w"), indent=1)
-    return {**DEFAULT, **json.load(open(CONF))}
+    c = {**DEFAULT, **json.load(open(CONF))}
+    if "allow" in c:   # the first version's settings: allow → on, tv → ask
+        for ip, n in c.pop("allow").items(): c["devices"].setdefault(ip, {"name": n, "mode": "on"})
+        if c.get("tv"): c["devices"][c.pop("tv")] = {"name": "LG TV", "mode": "ask"}
+        for k in ("tv_approval", "tv_normal_gb"): c.pop(k, None)
+        save_conf(c)
+    return c
+
+
+def save_conf(c):
+    json.dump(c, open(CONF + ".tmp", "w"), indent=1); os.replace(CONF + ".tmp", CONF)
 
 
 def _ag(path, body=None):
@@ -37,44 +59,67 @@ def _ag(path, body=None):
     with urllib.request.urlopen(r, timeout=10) as f: return f.read()
 
 
-def rules(c, house, tv):
-    """Our block of AdGuard user rules: everything off for the house (but `allow`) and/or the TV, local names kept."""
+def _t(s):   # AdGuard's query times are UTC ("…Z")
+    return calendar.timegm(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S"))
+
+
+def activity(since):
+    """{ip: [lookups, refused, {names}]} since `since` (epoch), from AdGuard's query log, newest first, paged."""
+    out, older = {}, ""
+    for _ in range(20):
+        q = json.loads(_ag(f"/control/querylog?limit=500{'&older_than=' + older if older else ''}"))
+        rows = q.get("data") or []
+        for e in rows:
+            if _t(e["time"]) < since: return out
+            a = out.setdefault(e.get("client", ""), [0, 0, set()]); a[0] += 1; a[2].add(".".join(e["question"]["name"].split(".")[-2:]))
+            if e.get("reason", "").startswith("Filtered"): a[1] += 1
+        older = q.get("oldest") or ""
+        if not rows or not older: break
+    return out
+
+
+def neighbours():
+    """LAN addresses the homelab has seen lately (ARP), so quiet devices are listed too."""
+    r = subprocess.run(["ip", "-4", "neigh"], capture_output=True, text=True).stdout
+    return {l.split()[0]: l.split()[4] for l in r.splitlines() if l.startswith("192.168.10.") and "lladdr" in l}
+
+
+def rules(c, blocked, lockdown, allowed):
     out = []
-    if house:
-        out += [f"||*^$client={c['net']}", "@@||*^$client=" + "|".join(c["allow"])]
-    if tv and not house:
-        out += [f"||*^$client={c['tv']}"]
+    if lockdown: out += [f"||*^$client={c['net']}"] + (["@@||*^$client=" + "|".join(sorted(allowed))] if allowed else [])
+    if blocked: out += ["||*^$client=" + "|".join(sorted(blocked))]
     if out: out += [f"@@||{d}^" for d in c["local"]]
     return out
 
 
-def apply(c, house, tv):
+def apply(c, blocked, lockdown, allowed):
     cur = json.loads(_ag("/control/filtering/status")).get("user_rules") or []
-    if START in cur: i, j = cur.index(START), cur.index(END) + 1; keep = cur[:i] + cur[j:]
-    else: keep = cur
-    mine = rules(c, house, tv)
+    keep = cur[:cur.index(START)] + cur[cur.index(END) + 1:] if START in cur else cur
+    mine = rules(c, blocked, lockdown, allowed)
     new = keep + ([START] + mine + [END] if mine else [])
     if new != cur: _ag("/control/filtering/set_rules", {"rules": new})
 
 
-def tv_asked(c, since):
-    """Did the TV look anything up (and get refused) since `since`? From AdGuard's query log."""
-    q = json.loads(_ag(f"/control/querylog?search={c['tv']}&response_status=blocked&limit=5"))
-    for e in q.get("data", []):
-        t = e.get("time", "")[:19]
-        if t and time.mktime(time.strptime(t, "%Y-%m-%dT%H:%M:%S")) > since: return True
-    return False
-
-
 def answers(topic, g):
-    """Taps on the alert buttons since the last check (they post 'tv 60', 'tv 180', 'tv no', 'lift' to <topic>-guard)."""
+    """Taps on the alert buttons ('ok <ip> <min>', 'no <ip>', 'lift'; the first version's 'tv 60' too), and Soma's."""
+    msgs = []
     try:
         with urllib.request.urlopen(f"https://ntfy.sh/{topic}-guard/json?poll=1&since={g.get('since', 'all')}", timeout=15) as f:
             ev = [json.loads(l) for l in f.read().decode().splitlines() if l.strip()]
-    except Exception: return []
-    ev = [e for e in ev if e.get("event") == "message"]
-    if ev: g["since"] = ev[-1]["id"]
-    return [e.get("message", "").strip().lower() for e in ev]
+        ev = [e for e in ev if e.get("event") == "message"]
+        if ev: g["since"] = ev[-1]["id"]
+        msgs += [e.get("message", "") for e in ev]
+    except Exception: pass
+    try:
+        os.replace(ACTS, ACTS + ".work"); msgs += [json.loads(l)["a"] for l in open(ACTS + ".work") if l.strip()]; os.remove(ACTS + ".work")
+    except (OSError, ValueError): pass
+    return [m.strip() for m in msgs]
+
+
+def act(a):
+    """Soma's switches: queue an answer for the next run (and run it now)."""
+    os.makedirs(D, exist_ok=True)
+    with open(ACTS, "a") as f: f.write(json.dumps({"a": a, "at": time.time()}) + "\n")
 
 
 def ask(topic, title, body, buttons):
@@ -89,47 +134,119 @@ def qbit(pause):
     if not pause and st == "true": subprocess.run(["docker", "unpause", "qbittorrent"], capture_output=True)
 
 
+def normal_min(ip):
+    """A device's normal session length: the median of its last 20 finished sessions (at least 30 min)."""
+    try: ls = [json.loads(l) for l in open(SESS)][-400:]
+    except OSError: return 90
+    m = [s["min"] for s in ls if s["ip"] == ip][-20:]
+    return max(30, statistics.median(m)) if len(m) >= 3 else 90
+
+
 def run(s, day, budget, topic, notify):
     """Called once a minute from netwatch sample with its state, today's key and today's share in bytes."""
+    os.makedirs(D, exist_ok=True)
+    with open(LOCK, "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        return _run(s, day, budget, topic, notify)
+
+
+def _run(s, day, budget, topic, notify):
     c = conf()
     try: g = json.load(open(STATE))
     except (OSError, ValueError): g = {}
-    if not c["on"]: apply(c, False, False); qbit(False); return "guard off"
-    now = time.time()
+    now = time.time(); dev = g.setdefault("dev", {})
+    if not c["on"]:
+        apply(c, set(), False, set()); qbit(False); g["summary"] = "guard off"; _save(g); return "guard off"
     for a in answers(topic, g):
-        if a == "lift": g["lifted"] = day
-        elif a.startswith("tv "):
-            m = a.split()[1]
-            if m.isdigit():
-                if now >= g.get("tv_until", 0): g["tv_start_used"] = s["used"]      # a new session, not more time
-                g["tv_until"] = now + int(m) * 60; g["tv_until_prev"] = 1
-                for k in ("tv_asked_at", "tv_end_asked"): g.pop(k, None)
-            else: g["tv_until"] = 0; g["tv_no_until"] = now + 1800
+        w = a.split(); w[0] = w[0].lower() if w else ""
+        if a.lower() == "lift": g["lifted"] = day
+        elif w[0] == "tv" and len(w) == 2: w = (["no", "192.168.10.50"] if w[1] == "no" else ["ok", "192.168.10.50", w[1]])
+        if w[0] == "ok" and len(w) == 3 and w[2].isdigit():
+            d = dev.setdefault(w[1], {})
+            if now >= d.get("until", 0): d["start_used"] = s["used"]          # a new approved session, not more time
+            d["until"] = now + int(w[2]) * 60; d.pop("asked", None); d.pop("end_asked", None); d.pop("gb_asked", None); d.pop("len_asked", None)
+        elif w[0] == "no" and len(w) == 2:
+            d = dev.setdefault(w[1], {}); d["until"] = 0; d["no_until"] = now + 1800
+        elif w[0] == "mode" and len(w) == 3 and w[2].lower() in MODES:
+            c["devices"].setdefault(w[1], {"name": f"Device .{w[1].rsplit('.', 1)[-1]}"})["mode"] = w[2].lower(); save_conf(c)
+        elif w[0] == "name" and len(w) >= 3:
+            c["devices"].setdefault(w[1], {"mode": c["default_mode"]})["name"] = a.split(None, 2)[2][:40]; save_conf(c)
+
+    # sessions: lookups since the last run, per device
+    seen = activity(g.get("at", now - 120)); g["at"] = now
+    for ip, mac in neighbours().items(): dev.setdefault(ip, {})["mac"] = mac
+    for ip, (q, refused, names) in seen.items():
+        if not ip.startswith("192.168.10."): continue
+        d = dev.setdefault(ip, {}); d["last"] = now; d["q"] = d.get("q", 0) + q
+        if not d.get("start"): d.update(start=now, sq=0, house0=s["used"])
+        d["sq"] = d.get("sq", 0) + q; d["refused"] = refused
+        d["use"] = now if len(names) >= 4 else d.get("use", 0)   # several different sites in a minute: someone is using it, not background chatter
+    for ip, d in dev.items():   # a 10-minute gap ends a session
+        if d.get("start") and now - d.get("last", 0) > 600:
+            with open(SESS, "a") as f:
+                f.write(json.dumps({"ip": ip, "name": c["devices"].get(ip, {}).get("name", ""), "start": d["start"], "end": d["last"],
+                                    "min": round((d["last"] - d["start"]) / 60), "lookups": d.get("sq", 0),
+                                    "house_gb": round((s["used"] - d.get("house0", s["used"])) / 1e9, 2)}) + "\n")
+            d.pop("start", None); d.pop("sq", None)
+
     over = s["days"].get(day, 0) > budget and g.get("lifted") != day
     if over and g.get("over_day") != day:
         g["over_day"] = day
-        names = ", ".join(c["allow"].values())
-        ask(topic, "Internet: over today's share, guard on", f"{s['days'][day]/1e9:.1f} GB of {budget/1e9:.1f} GB used. Only {names} stay "
-            "online and downloads are paused until midnight.", [("Lift for today", "lift")])
-    tv_on = now < g.get("tv_until", 0)
-    if not tv_on and g.get("tv_until_prev"):   # the session's time ran out
-        g["tv_until_prev"] = 0; g.pop("tv_start_used", None)
-        notify("TV session over", "The TV's internet is off again. It asks you next time it's used.")
-    need_ok = c["tv_approval"] == "always" or over
-    if need_ok and not tv_on and now > g.get("tv_no_until", 0) and now - g.get("tv_asked_at", 0) > 900 and tv_asked(c, now - 120):
-        g["tv_asked_at"] = now
-        ask(topic, "The TV wants the internet", "Allow a session?", [("1 hour", "tv 60"), ("3 hours", "tv 180"), ("No", "tv no")])
-    if tv_on:
-        left = g["tv_until"] - now; gb = (s["used"] - g.get("tv_start_used", s["used"])) / 1e9
-        if left < 600 and not g.get("tv_end_asked"):
-            g["tv_end_asked"] = 1
-            ask(topic, "TV session ends in 10 min", f"{gb:.1f} GB used by the house since it started. Keep going?", [("1 more hour", "tv 60"), ("Stop", "tv no")])
-        if gb > c["tv_normal_gb"] and not g.get("tv_gb_asked"):
-            g["tv_gb_asked"] = 1
-            ask(topic, "TV session past its normal size", f"{gb:.1f} GB since it started (normal: {c['tv_normal_gb']} GB). Keep going?",
-                [("Keep going", f"tv {max(10, int(left // 60))}"), ("Stop", "tv no")])
-    else: g.pop("tv_end_asked", None)
-    apply(c, over, need_ok and not tv_on); qbit(over)
+        names = ", ".join(v["name"] for v in c["devices"].values() if v.get("mode") == "on")
+        ask(topic, "Internet: over today's share, guard on", f"{s['days'][day]/1e9:.1f} GB of {budget/1e9:.1f} GB used. Only {names} "
+            "(and approved sessions) stay online; downloads are paused until midnight.", [("Lift for today", "lift")])
+
+    blocked, allowed = set(), set()
+    for ip in set(c["devices"]) | {i for i in dev if i.startswith("192.168.10.")}:
+        mode = c["devices"].get(ip, {}).get("mode", c["default_mode"]); d = dev.setdefault(ip, {}); name = c["devices"].get(ip, {}).get("name", ip)
+        live = now < d.get("until", 0)
+        if mode == "on" or live: allowed.add(ip)
+        if mode == "off" or (mode == "ask" and not live) or (mode == "guarded" and over and not live): blocked.add(ip)
+        if mode == "ask" and not live and d.get("refused") and now - d.get("use", 0) < 120 and now > d.get("no_until", 0) \
+                and now - d.get("asked", 0) > 900:
+            d["asked"] = now
+            ask(topic, f"{name} wants the internet", "Allow a session?", [("1 hour", f"ok {ip} 60"), ("3 hours", f"ok {ip} 180"), ("No", f"no {ip}")])
+        if live:
+            left = d["until"] - now; gb = (s["used"] - d.get("start_used", s["used"])) / 1e9; mins = (now - d.get("start", now)) / 60
+            if left < 600 and not d.get("end_asked"):
+                d["end_asked"] = 1
+                ask(topic, f"{name}: session ends in 10 min", f"{gb:.1f} GB used by the house since it started. Keep going?",
+                    [("1 more hour", f"ok {ip} 60"), ("Stop", f"no {ip}")])
+            if (gb > c["normal_gb"] and not d.get("gb_asked")) or (mins > 2 * normal_min(ip) and not d.get("len_asked")):
+                d["gb_asked"] = d["len_asked"] = 1
+                ask(topic, f"{name}: session past its normal size", f"{mins:.0f} min, {gb:.1f} GB (normal: {normal_min(ip):.0f} min, "
+                    f"{c['normal_gb']} GB). Keep going?", [("Keep going", f"ok {ip} {max(10, int(left // 60))}"), ("Stop", f"no {ip}")])
+        elif d.pop("until", None):   # an approved session's time ran out
+            d.pop("end_asked", None); notify(f"{name}: session over", "Its internet is off again; it asks you next time.")
+    apply(c, blocked, over, allowed); qbit(over)
+    g["summary"] = {"over": over, "lifted": g.get("lifted") == day, "blocked": sorted(blocked), "share_gb": round(budget / 1e9, 1),
+                    "today_gb": round(s["days"].get(day, 0) / 1e9, 2)}
+    _save(g)
+    return f"guard: {'OVER (downloads paused)' if over else 'under share'}; {len(blocked)} blocked: " + \
+        ", ".join(c["devices"].get(i, {}).get("name", i) for i in sorted(blocked))
+
+
+def _save(g):
     json.dump(g, open(STATE + ".tmp", "w")); os.replace(STATE + ".tmp", STATE)
-    return f"guard: {'OVER, only ' + str(len(c['allow'])) + ' devices online, downloads paused' if over else 'under share'}; TV " + \
-        (f"on for {int((g['tv_until'] - now) // 60)} min" if tv_on else ("off (needs your OK)" if need_ok else "free"))
+
+
+def board():
+    """Everything Soma's Internet tab shows: each device, its mode, whether it's in a session now, today's sessions."""
+    c = conf()
+    try: g = json.load(open(STATE))
+    except (OSError, ValueError): g = {}
+    now, dev = time.time(), g.get("dev", {})
+    midnight = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
+    try: today = [json.loads(l) for l in open(SESS)][-2000:]
+    except OSError: today = []
+    today = [x for x in today if x["end"] >= midnight]
+    out = []
+    for ip in sorted(set(c["devices"]) | {i for i in dev if i.startswith("192.168.10.")}, key=lambda i: tuple(int(p) for p in i.split("."))):
+        d, cd = dev.get(ip, {}), c["devices"].get(ip, {})
+        out.append({"ip": ip, "name": cd.get("name") or f"Device .{ip.rsplit('.', 1)[-1]}", "mode": cd.get("mode", c["default_mode"]),
+                    "mac": d.get("mac", ""), "last": d.get("last"), "active": bool(d.get("start")),
+                    "session_min": round((now - d["start"]) / 60) if d.get("start") else 0, "session_lookups": d.get("sq", 0),
+                    "until": d.get("until") if now < d.get("until", 0) else None,
+                    "blocked": ip in (g.get("summary") or {}).get("blocked", []) if isinstance(g.get("summary"), dict) else False,
+                    "today": [x for x in today if x["ip"] == ip][-12:], "normal_min": normal_min(ip)})
+    return {"on": c["on"], "summary": g.get("summary"), "at": g.get("at"), "devices": out}

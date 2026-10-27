@@ -1,0 +1,27 @@
+#!/bin/sh
+# phone-adb: pair the phone with this laptop over wireless debugging by QR code (nothing to type), then let KDE Connect
+# read the phone's clipboard in the background, so phone → laptop copy works by itself (Android 10+ blocks that for every
+# app unless it is granted READ_LOGS over adb, 2026-10-27).
+#   phone-adb          show the QR on the laptop screen and wait (phone: Developer options → Wireless debugging →
+#                      Pair device with QR code → scan it)
+#   phone-adb grant    only the KDE Connect grants (phone already paired)
+set -eu
+PKG=org.kde.kdeconnect_tp
+grant() {
+  t=$(adb mdns services | awk '/_adb-tls-connect/ {print $NF; exit}')
+  [ -n "$t" ] && adb connect "$t" >/dev/null
+  adb shell pm grant $PKG android.permission.READ_LOGS && adb shell appops set $PKG SYSTEM_ALERT_WINDOW allow && adb shell am force-stop $PKG
+  echo "KDE Connect can now read the phone's clipboard in the background (it restarts by itself; open it once if not)."
+}
+[ "${1:-}" = grant ] && { grant; exit; }
+name="mak-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n')"; pass=$(head -c6 /dev/urandom | od -An -tu1 | tr -d ' \n' | cut -c1-10)
+img=$(mktemp --suffix=.png); qrencode -s 12 -m 3 -o "$img" "WIFI:T:ADB;S:$name;P:$pass;;"
+WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-1} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)} setsid -f xdg-open "$img" >/dev/null 2>&1
+echo "QR on the screen. Phone: Developer options → Wireless debugging → Pair device with QR code → scan it. Waiting 20 min…"
+adb start-server >/dev/null 2>&1
+for i in $(seq 600); do
+  hp=$(adb mdns services | awk -v n="$name" '$0 ~ n && /_adb-tls-pairing/ {print $NF; exit}')
+  if [ -n "$hp" ]; then adb pair "$hp" "$pass" && { sleep 3; grant; rm -f "$img"; exit 0; }; fi
+  sleep 2
+done
+rm -f "$img"; echo "No phone showed up. Is Wireless debugging on, and the phone on the home Wi-Fi?"; exit 1

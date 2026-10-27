@@ -6,6 +6,7 @@
   netwatch           this month's usage, and how the line is doing
   netwatch report    the last 24 hours of line quality, for the ISP
   netwatch install   start the two timers (once)
+  netwatch guard     apply the data guard now (Soma's Internet switches)
 
 Settings: ~/.config/netwatch/conf (CAP_GB, CYCLE_DAY, START_USED_GB). The data guard (guard.py) runs with every sample. Phone alerts go to the homelab's ntfy topic (the
 one Watchtower uses) at 80/90/95/100 % of the cap and when the line is bad 3 checks running.
@@ -151,6 +152,12 @@ def report():
         print(time.strftime("%d %b %H:%M", time.localtime(r["t"])), f"loss {r['loss']}%  {r['ms']} ms  (router {r['router_ms']} ms)")
 
 
+def guard_now():
+    """Apply the guard now (Soma's switches call this), with this minute's numbers."""
+    import guard; s = load(); k = dt.datetime.now().strftime("%m-%d")
+    print(guard.run(s, k, s.get("share", float("inf")) if s.get("share_day") == k else float("inf"), topic().group(2), ntfy))
+
+
 def install():
     """Run sample every minute and quality every 5 minutes (systemd user timers)."""
     u = os.path.expanduser("~/.config/systemd/user"); os.makedirs(u, exist_ok=True)
@@ -163,4 +170,4 @@ def install():
 
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-{"sample": sample, "quality": quality, "report": report, "install": install}.get(cmd, status)()
+{"sample": sample, "quality": quality, "report": report, "install": install, "guard": guard_now}.get(cmd, status)()
