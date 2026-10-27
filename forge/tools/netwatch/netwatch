@@ -107,6 +107,13 @@ def status():
               f"{(CAP-s['used'])/1e9:.0f} GB left. Measured: ↓{s['down']/1e9:.1f} ↑{s['up']/1e9:.1f} GB."
               + (" (Downloads estimated from qBittorrent: the router's download counter is full until it restarts.)" if s.get("rx_stuck") else ""))
         for k in sorted(s["days"])[-7:]: print(f"  {k}: {s['days'][k]/1e9:.1f} GB")
+    try:   # the Kaggle GPU jobs' own traffic (kaggle-run logs it), this cycle
+        t0 = dt.datetime.strptime(load().get("cycle", "2000-01-01"), "%Y-%m-%d").timestamp(); up = down = 0
+        for l in open(os.path.expanduser("~/Projects/clipper/kaggle/traffic.log")):
+            ts, way, _, n = (l.split() + ["0"])[:4]
+            if float(ts) >= t0: up, down = up + (int(n) if way == "up" else 0), down + (int(n) if way == "down" else 0)
+        print(f"Kaggle GPU this month: ↑{up/1e9:.1f} GB uploaded, ↓{down/1e9:.1f} GB downloaded")
+    except (OSError, ValueError): pass
     try: print("Line:", open(QLOG).readlines()[-1].strip())
     except (OSError, IndexError): pass
 
