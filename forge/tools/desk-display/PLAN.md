@@ -102,3 +102,23 @@ Quick-commerce apps (Blinkit, Zepto, Instamart) don't stock breadboard jumpers. 
   [male-to-female 20 cm](https://probots.co.in/male-to-female-jumper-wires-40-pcs-20cm.html) (for sensors later),
   [140-piece breadboard kit](https://probots.co.in/breadboard-jumper-kit-140pcs-solderless-cable-wire-for-prototypi.html).
 - **SP Road** (Bangalore's electronics market): any shop has jumper sets, BME280s and WS2812 strips the same day.
+
+## Your room by remote: fan, lights, TV, AC, PS5 (2026-10-27)
+
+"I want to be able to turn my fan off remotely and anything in my room." Everything below is switched from a Soma **Room** tile
+(Homelab), from anywhere on the tailnet; all local, no vendor cloud. Software: ESPHome (<https://github.com/esphome/esphome>);
+optionally Home Assistant (<https://github.com/home-assistant/core>) later.
+
+| Thing | How | Parts (≈₹) |
+|---|---|---|
+| **Ceiling fan** (regular capacitor fan) | an ESP32 relay board behind the fan switch: one relay for on/off, two more switch the speed capacitors (steps 1–4). The wall switch keeps working. **An electrician fits it** (230 V). | 4-relay ESP32 board ₹650 + capacitors ₹200 |
+| **Ceiling fan** (BLDC with a remote, e.g. Atomberg) | IR or RF: the ESP32 learns the fan remote and replays it (plan #8). No wiring. | IR LED + receiver ₹60 |
+| **Lamp, LED strip, purifier, charger** | smart plugs that run Tasmota/ESPHome (ESP-based, 16 A, power metering) | ₹800 each |
+| **Room light** | same relay board as the fan, second channel | – |
+| **AC** | IR from the ESP32 (plan #8): on/off, temperature, mode | (same IR parts) |
+| **TV** | already done: `ps5-play` talks to the LG over the network (on/off/state) | – |
+| **PS5** | Chiaki wakes it; rest mode from the PS5 menu | – |
+| **Laptop / homelab** | Wake-on-LAN (plan #7) | – |
+
+Order: smart plug for the lamp first (no wiring, 10 minutes), then the IR blaster (AC, TV backup), then the fan board with an
+electrician. Parts are on Deal Check: <https://soma.meldev.duckdns.org/artifact.html?id=deal-check>.
