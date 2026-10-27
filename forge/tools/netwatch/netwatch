@@ -77,6 +77,17 @@ def sample():
             s["alerted"].append(pct)
             ntfy(f"Internet: {pct}% of this month used", f"{s['used']/1e9:.0f} of {CAP/1e9:.0f} GB used since {cyc}. "
                  f"Today so far: {s['days'][k]/1e9:.1f} GB.", "urgent" if pct >= 95 else "high")
+    # the day's budget: what's left this cycle shared over the days left; one alert a day when today runs past it
+    nxt = (dt.datetime.strptime(cyc, "%Y-%m-%d") + dt.timedelta(days=32)).replace(day=min(DAY, 28))
+    days_left = max(1, (nxt - now).days + 1); budget = max(0.0, CAP - s["used"]) / days_left
+    if s["days"][k] > budget and s.get("budget_alert") != k:
+        s["budget_alert"] = k
+        ntfy("Internet: over today's share", f"{s['days'][k]/1e9:.1f} GB used today; the {max(0, CAP - s['used'])/1e9:.0f} GB left "
+             f"over {days_left} days is {budget/1e9:.1f} GB a day.")
+    dtm = max(1.0, time.time() - s.get("prev_at", time.time() - 60)); s["prev_at"] = time.time()
+    print(f"+{d_rx/1e6:.1f} MB down, +{d_tx/1e6:.1f} MB up in {dtm:.0f} s ({(d_rx + d_tx) * 8 / dtm / 1e6:.2f} Mbit/s)"
+          f"{' [down from qBittorrent: router counter full]' if s.get('rx_stuck') else ''} | today {s['days'][k]/1e9:.2f} GB"
+          f" of {budget/1e9:.1f} GB/day | month {s['used']/1e9:.1f}/{CAP/1e9:.0f} GB, {days_left} days left")
     json.dump(s, open(STATE + ".tmp", "w")); os.replace(STATE + ".tmp", STATE)
 
 
@@ -90,6 +101,7 @@ def quality():
     rl, ra = ping("192.168.10.1"); l1, a1 = ping("1.1.1.1"); l8, a8 = ping("8.8.8.8")
     row = {"t": int(time.time()), "router_ms": ra, "loss": max(l1, l8), "ms": round((a1 + a8) / 2, 1)}
     open(QLOG, "a").write(json.dumps(row) + "\n")
+    print(f"router {ra:.1f} ms | 1.1.1.1 {l1:.0f}% loss {a1:.0f} ms | 8.8.8.8 {l8:.0f}% loss {a8:.0f} ms")
     rows = [json.loads(l) for l in open(QLOG).readlines()[-3:]]
     bad = lambda r: r["loss"] >= 10 or r["ms"] > 120
     if len(rows) == 3 and all(bad(r) for r in rows) and not os.path.exists(f"{D}/bad"):
