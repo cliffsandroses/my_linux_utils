@@ -1,7 +1,7 @@
 # update-syncthing.ps1: update Syncthing on a Windows PC where its own auto-upgrade can't reach
 # upgrades.syncthing.net (office networks block it). Downloads the release from GitHub instead,
 # swaps the exe, restarts it with the same arguments, and turns the failing auto-upgrade off.
-# No admin rights needed when Syncthing lives in your user folder.
+# Works with SyncTrayzor too (it keeps syncthing.exe in %APPDATA%\SyncTrayzor). No admin rights needed in your user folder.
 #   irm https://raw.githubusercontent.com/cliffsandroses/smithy/main/forge/tools/work-pc/update-syncthing.ps1 | iex
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -10,7 +10,7 @@ $ProgressPreference = 'SilentlyContinue'
 # 1. Find the running syncthing.exe (or the usual install places)
 $proc = Get-CimInstance Win32_Process -Filter "Name='syncthing.exe'" | Select-Object -First 1
 $exe = if ($proc) { $proc.ExecutablePath } else {
-  @("$env:LOCALAPPDATA\Programs\Syncthing\syncthing.exe", "$env:ProgramFiles\Syncthing\syncthing.exe",
+  @("$env:APPDATA\SyncTrayzor\syncthing.exe", "$env:ProgramFiles\SyncTrayzor\syncthing.exe", "$env:LOCALAPPDATA\Programs\Syncthing\syncthing.exe", "$env:ProgramFiles\Syncthing\syncthing.exe",
     "$env:USERPROFILE\scoop\apps\syncthing\current\syncthing.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Links\syncthing.exe") |
     Where-Object { Test-Path $_ } | Select-Object -First 1 }
 if (-not $exe) { Write-Host "Couldn't find syncthing.exe. Is Syncthing installed?" -ForegroundColor Red; return }
@@ -32,12 +32,14 @@ if ($have -eq $want) { Write-Host "Already the latest ($want)." -ForegroundColor
   }
   Expand-Archive $zip "$env:TEMP\$name" -Force
 
-  # 3. Swap the exe (the old one is kept as syncthing.exe.old) and start it again
-  if ($proc) { Stop-Process -Id $proc.ProcessId -Force; Start-Sleep 2 }
-  Get-Process syncthing -ErrorAction SilentlyContinue | Stop-Process -Force
+  # 3. Swap the exe (the old one is kept as syncthing.exe.old) and start it again. SyncTrayzor runs its own syncthing.exe
+  #    and restarts it the moment it stops, so SyncTrayzor is closed first and started again after the swap.
+  $tray = Get-CimInstance Win32_Process -Filter "Name='SyncTrayzor.exe'" | Select-Object -First 1
+  if ($tray) { Write-Host "SyncTrayzor found: closing it for the swap"; Stop-Process -Id $tray.ProcessId -Force; Start-Sleep 2 }
+  Get-Process syncthing -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 1
   Copy-Item $exe "$exe.old" -Force
   Copy-Item "$env:TEMP\$name\syncthing.exe" $exe -Force
-  Start-Process $exe -ArgumentList $args0 -WindowStyle Hidden
+  if ($tray) { Start-Process $tray.ExecutablePath } else { Start-Process $exe -ArgumentList $args0 -WindowStyle Hidden }
   Start-Sleep 5
   Write-Host "Now: $((& $exe --version) -split ' ' | Select-Object -Index 1)" -ForegroundColor Green
 }
