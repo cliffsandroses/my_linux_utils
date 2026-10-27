@@ -4,4 +4,6 @@
 mkdir -p "$HOME/.local/state/chiaki"
 export QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:---disable-gpu}"
 echo "=== $(date -Is) start" >> "$HOME/.local/state/chiaki/chiaki.log"
+# ps5-play: controller, PS5 and network check (a notification), then a TV watch for as long as Chiaki runs
+command -v ps5-play >/dev/null && { ps5-play check --notify >/dev/null 2>&1 & setsid ps5-play watch $$ >/dev/null 2>&1 & }
 exec /usr/bin/chiaki "$@" 2>> "$HOME/.local/state/chiaki/chiaki.log"

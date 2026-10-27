@@ -71,6 +71,13 @@
   "path": "forge/tools/chiaki-launch"
  },
  {
+  "name": "ps5-play",
+  "category": "Games",
+  "what": "Before Remote Play: is the controller, PS5 and network ready? While playing: alerts if the TV turns itself on.",
+  "command": "ps5-play check",
+  "path": "forge/tools/ps5-play"
+ },
+ {
   "name": "deals-fetch",
   "category": "Home",
   "what": "Deal Check's OLX search for your wishlist, every 3 h.",

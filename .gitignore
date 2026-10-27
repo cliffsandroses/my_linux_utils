@@ -3,3 +3,4 @@ config
 
 # Holds the ntfy topic: anyone with it can read and send your alerts. The .example is what gets committed.
 laptop-health/laptop-health.conf
+__pycache__/

@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""ps5-play: checks before PS5 Remote Play (chiaki-ng), and a TV watch while it runs.
+
+  ps5-play check        controller, PS5, network: is everything ready to play?
+  ps5-play pair-tv      pair with the LG TV once (accept the prompt on the TV)
+  ps5-play watch PID    while PID (chiaki) runs: alert if the TV switches itself on
+  ps5-play tv           print the TV's state
+
+chiaki-launch runs `check` before Chiaki starts and `watch` alongside it.
+"""
+import glob, os, re, socket, subprocess, sys, time
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import lgtv
+
+TV = os.environ.get("PS5PLAY_TV", "192.168.10.50")
+LOG = os.path.expanduser("~/.local/state/chiaki/ps5-play.log")
+
+
+def log(msg):
+    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    with open(LOG, "a") as f: f.write(time.strftime("%F %T ") + msg + "\n")
+
+
+def notify(title, body, urgent=False, actions=()):
+    cmd = ["notify-send", "-a", "PS5", "-i", "input-gaming", title, body]
+    if urgent: cmd[1:1] = ["-u", "critical"]
+    for k, v in actions: cmd += ["-A", f"{k}={v}"]
+    try: return subprocess.run(cmd, capture_output=True, text=True, timeout=120 if actions else 5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired): return ""
+
+
+def controller():
+    """(ok, text): a DualSense/DualShock seen by the kernel, how it's connected and its battery."""
+    devs = open("/proc/bus/input/devices").read().split("\n\n")
+    pads = [d for d in devs if re.search(r'N: Name=".*(DualSense|Wireless Controller)"$', d, re.M)]
+    if not pads: return False, "no controller: plug the DualSense in by USB-C, or hold PS + Create to pair it by Bluetooth"
+    bus = "USB" if "Bus=0003" in pads[0] else "Bluetooth"
+    bat = ""
+    for p in glob.glob("/sys/class/power_supply/ps-controller-battery-*"):
+        try: bat = f", battery {open(p + '/capacity').read().strip()}% ({open(p + '/status').read().strip().lower()})"
+        except OSError: pass
+    hid = [h for h in glob.glob("/dev/hidraw*") if os.access(h, os.R_OK | os.W_OK)]
+    if not hid: return False, f"controller on {bus}{bat}, but Chiaki can't open it (no hidraw access): unplug and replug it"
+    return True, f"controller on {bus}{bat}"
+
+
+def ps5():
+    """(ok, text, ip): the PS5's answer to the Remote Play discovery broadcast."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1); s.settimeout(2)
+    for _ in range(2):
+        s.sendto(b"SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n", ("255.255.255.255", 9302))
+        try:
+            d, (ip, _) = s.recvfrom(2048); d = d.decode(errors="replace")
+            if "host-type:PS5" not in d: continue
+            if " 200 " in d.split("\n")[0]: return True, f"PS5 on, at {ip}", ip
+            return True, f"PS5 in rest mode at {ip}: Chiaki wakes it", ip
+        except socket.timeout: pass
+    return False, "PS5 not found: it's off (a power cut?) or off the network. Press its power button once; Remote Play can't wake it from fully off", None
+
+
+def network(ip):
+    """(ok, text): 20 quick pings to the PS5; loss or jitter is what makes Chiaki freeze and drop."""
+    if not ip: return False, ""
+    out = subprocess.run(["ping", "-c", "20", "-i", "0.2", "-W", "1", ip], capture_output=True, text=True).stdout
+    loss = int(re.search(r"(\d+)% packet loss", out).group(1)) if "packet loss" in out else 100
+    m = re.search(r"= [\d.]+/([\d.]+)/([\d.]+)/([\d.]+)", out)
+    avg, mx = (float(m.group(1)), float(m.group(2))) if m else (0, 0)
+    ok = loss == 0 and mx < 60
+    tip = "" if ok else ": the PS5's Wi-Fi is weak. Use a LAN cable on the PS5, or its 5 GHz Wi-Fi, and set Chiaki to 1080p/30"
+    return ok, f"network {loss}% loss, {avg:.0f} ms average, {mx:.0f} ms worst{tip}"
+
+
+def check(quiet=False):
+    rows = [controller()]
+    ok, text, ip = ps5(); rows.append((ok, text)); rows.append(network(ip))
+    tv = lgtv.state(TV)
+    rows.append((True, {"unpaired": "TV watch off: run `ps5-play pair-tv` once"}.get(tv, f"TV {tv.replace('on:', 'on, showing ')}")))
+    good = all(r[0] for r in rows if r[1])
+    lines = [("✓ " if o else "✗ ") + t for o, t in rows if t]
+    if not quiet: print("\n".join(lines))
+    log("check " + ("ok" if good else "PROBLEM") + " | " + " | ".join(lines))
+    if not good or quiet: notify("Ready to play" if good else "Remote Play problem", "\n".join(lines), urgent=not good)
+    return good
+
+
+def watch(pid):
+    """Alert when the TV goes from off/standby to on while Chiaki runs (the PS5's HDMI link wakes it).
+    If it was already on (Netflix etc.) nothing happens."""
+    last = lgtv.state(TV)
+    if last == "unpaired": return
+    log(f"watch start: TV {last}")
+    while os.path.exists(f"/proc/{pid}"):
+        time.sleep(4)
+        now = lgtv.state(TV)
+        if now.startswith("on") and not last.startswith("on"):
+            log(f"TV switched on by itself ({last} -> {now})")
+            if notify("Your TV just turned on", "It was off when Remote Play started. Turn it off?", urgent=True,
+                      actions=(("off", "Turn TV off"), ("keep", "Leave it"))) == "off":
+                try: lgtv.off(TV); log("TV turned off from the alert")
+                except OSError as e: log(f"turn off failed: {e}")
+            now = lgtv.state(TV)
+        last = now
+
+
+def main(a):
+    if not a or a[0] in ("-h", "--help", "help"): print(__doc__.strip()); return 0
+    if a[0] == "check": return 0 if check("--notify" in a) else 1
+    if a[0] == "tv": print(lgtv.state(TV)); return 0
+    if a[0] == "pair-tv":
+        print("Look at the TV and choose Allow…")
+        try: t = lgtv.TV(TV, 60); ok = t.register(prompt=True)
+        except OSError as e: print(f"The TV didn't answer ({e}): is it on?"); return 1
+        print("Paired: the TV watch is on." if ok else "Not paired (declined?)"); return 0 if ok else 1
+    if a[0] == "watch" and len(a) > 1: watch(int(a[1])); return 0
+    print(__doc__.strip()); return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

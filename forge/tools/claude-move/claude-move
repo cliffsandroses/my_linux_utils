@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# claude-move: carry Claude Code, with its settings, skills, plugins, memory and a session, to another Linux machine,
+# so the same session continues there (and its work runs there, not on this laptop).
+#   claude-move moosa@192.168.10.20            the newest session of ~/ (this one)
+#   claude-move moosa@192.168.10.20 <session>  a given session id
+# Never copies the sign-in (~/.claude/.credentials.json): sign in once on the new machine when `claude` asks.
+# The new machine must have the same home path (/home/moosa) for the session to resume as-is.
+set -euo pipefail
+host=${1:?usage: claude-move user@host [session-id]}
+proj=$HOME/.claude/projects/-home-moosa
+sid=${2:-$(ls -t "$proj"/*.jsonl | head -1 | xargs basename | sed 's/\.jsonl$//')}
+
+echo "1/4 Claude Code on $host"
+if ! ssh "$host" 'command -v claude >/dev/null || test -x ~/.local/bin/claude'; then
+  echo "    not installed; installing (Anthropic's official installer)"
+  ssh "$host" 'curl -fsSL https://claude.ai/install.sh | bash' || {
+    echo "    install failed; run it there yourself:  ssh $host 'curl -fsSL https://claude.ai/install.sh | bash'"; exit 1; }
+fi
+
+echo "2/4 settings, skills, plugins, memory and session $sid"
+ssh "$host" "mkdir -p ~/.claude/projects/-home-moosa"
+rsync -a --info=stats0 \
+  --include='CLAUDE.md' --include='settings.json' --include='statusline.sh' \
+  --include='skills/***' --include='plugins/***' --exclude='*' \
+  "$HOME/.claude/" "$host:.claude/"
+rsync -a "$proj/memory" "$proj/$sid.jsonl" "$host:.claude/projects/-home-moosa/"
+[ -d "$proj/$sid" ] && rsync -a "$proj/$sid" "$host:.claude/projects/-home-moosa/"
+rsync -a "$HOME/.config/ccstatusline" "$host:.config/" 2>/dev/null || true
+
+echo "3/4 the files the session works on"
+for d in Axon Projects; do
+  ssh "$host" "test -d ~/$d" && echo "    ~/$d already there (Syncthing)" || echo "    ~/$d missing on $host: share it in Syncthing"
+done
+
+echo "4/4 ready. Continue the session there with:"
+echo "    ssh -t $host 'tmux new -As claude \"claude --resume $sid\"'"
+echo "First time only: claude shows a sign-in link; open it, sign in, paste the code back."
+echo "Detach with Ctrl+B then D; the session keeps working on $host after you close the terminal."

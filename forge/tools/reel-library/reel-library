@@ -55,6 +55,15 @@ def index():
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--index-only"]: index(); sys.exit()
+    if sys.argv[1:2] == ["--merge"]:      # results of the Kaggle GPU sort (kaggle-run reelsort): topic, summary, NSFW
+        R = json.load(open(sys.argv[2]))
+        for code, j in R.items():
+            f = LIB / code / "info.json"
+            if not f.exists(): continue
+            i = json.loads(f.read_text()); i.update(group=j.get("group", "Other"), summary=j.get("summary", ""),
+                nsfw=bool(j.get("explicit")) or j.get("nsfw_img", 0) > 0.7, why=("frames look explicit" if j.get("nsfw_img", 0) > 0.7 else "explicit words") if (j.get("explicit") or j.get("nsfw_img", 0) > 0.7) else "")
+            f.write_text(json.dumps(i, ensure_ascii=False))
+        index(); sys.exit()
     nojudge = "--no-judge" in sys.argv; args = [a for a in sys.argv[1:] if not a.startswith("--")]   # --no-judge: fetch + transcribe only (grouping later, e.g. on the Kaggle GPU)
     fails = 0
     for n, url in enumerate(links(args[0])):
